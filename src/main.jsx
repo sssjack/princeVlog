@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
@@ -78,6 +78,40 @@ function IconButton({ icon: Icon, children, className = '', ...props }) {
   );
 }
 
+function FadeIn({ children, className = '', delay = 0, tag: Tag = 'div' }) {
+  const ref = useCallback((node) => {
+    if (!node) return;
+    if (delay) node.style.transitionDelay = `${delay}ms`;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          node.classList.add('visible');
+          observer.unobserve(node);
+        }
+      },
+      { threshold: 0.06 }
+    );
+    observer.observe(node);
+  }, [delay]);
+
+  return <Tag ref={ref} className={`fade-in ${className}`}>{children}</Tag>;
+}
+
+function Footer() {
+  return (
+    <footer className="site-footer">
+      <div className="footer-inner">
+        <div className="footer-brand">
+          <span className="brand-mark">PV</span>
+          <span>PrinceVlog</span>
+        </div>
+        <p>用文字和照片记录生活中的灵感与感动</p>
+        <small>&copy; {new Date().getFullYear()} PrinceVlog</small>
+      </div>
+    </footer>
+  );
+}
+
 function usePageData(loader, deps = []) {
   const [state, setState] = useState({ loading: true, error: '', data: null });
 
@@ -136,6 +170,7 @@ function PublicLayout({ children, navigate, path }) {
         </nav>
       </header>
       <main>{children}</main>
+      <Footer />
     </>
   );
 }
@@ -175,21 +210,23 @@ function HomePage({ navigate }) {
         </div>
       </section>
 
-      <section className="content-band">
+      <FadeIn tag="section" className="content-band">
         <div className="section-head">
           <span>Featured</span>
           <h2>推荐文章</h2>
           <p>置顶那些值得反复回看的记录。</p>
         </div>
         <div className="article-grid">
-          {recommended.map((article) => (
-            <ArticleCard key={article.id} article={article} navigate={navigate} featured />
+          {recommended.map((article, i) => (
+            <FadeIn key={article.id} delay={i * 100}>
+              <ArticleCard article={article} navigate={navigate} featured />
+            </FadeIn>
           ))}
           {recommended.length === 0 ? <EmptyState text="后台设置推荐文章后会显示在这里。" /> : null}
         </div>
-      </section>
+      </FadeIn>
 
-      <section className="split-band">
+      <FadeIn tag="section" className="split-band">
         <div>
           <div className="section-head compact">
             <span>Categories</span>
@@ -220,9 +257,9 @@ function HomePage({ navigate }) {
             ))}
           </div>
         </div>
-      </section>
+      </FadeIn>
 
-      <section className="content-band">
+      <FadeIn tag="section" className="content-band">
         <div className="section-head">
           <span>Gallery</span>
           <h2>相簿照片墙</h2>
@@ -236,9 +273,11 @@ function HomePage({ navigate }) {
             </button>
           ))}
         </div>
-      </section>
+      </FadeIn>
 
-      <MessageBoard initialMessages={data?.messages || []} />
+      <FadeIn>
+        <MessageBoard initialMessages={data?.messages || []} />
+      </FadeIn>
     </div>
   );
 }
