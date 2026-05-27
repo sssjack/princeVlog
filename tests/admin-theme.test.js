@@ -18,4 +18,23 @@ describe('admin theme shell', () => {
     expect(styles).toContain('@media (max-width: 760px)');
     expect(styles).toContain('.admin-nav.is-open');
   });
+
+  it('keeps admin management pages list-first with modal create flows', () => {
+    expect(mainSource).toContain('function AdminModal');
+    expect(mainSource).toContain('function AdminToolbar');
+    expect(mainSource).toContain('modalMode');
+    expect(mainSource).toContain('admin-modal-backdrop');
+    expect(styles).toContain('.admin-toolbar');
+    expect(styles).toContain('.admin-modal');
+  });
+
+  it('supports batch photo creation and analytics visualizations', () => {
+    expect(mainSource).toContain('multiple');
+    expect(mainSource).toContain('selectedPhotoFiles');
+    expect(mainSource).toContain('Promise.all(selectedPhotoFiles.map');
+    expect(mainSource).toContain('function AdminTrendChart');
+    expect(mainSource).toContain('function AdminBarChart');
+    expect(styles).toContain('.analytics-visual-grid');
+    expect(styles).toContain('.trend-chart');
+  });
 });

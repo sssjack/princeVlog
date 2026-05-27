@@ -571,10 +571,10 @@ function AdminApp({ navigate }) {
         </header>
 
         <section className="admin-main">
-          {tab === 'analytics' && <AdminAnalytics />}
-          {tab === 'articles' && <AdminArticles />}
-          {tab === 'categories' && <AdminCategories />}
-          {tab === 'albums' && <AdminAlbums />}
+          {tab === 'analytics' && <AdminAnalyticsPanel />}
+          {tab === 'articles' && <AdminArticlesPanel />}
+          {tab === 'categories' && <AdminCategoriesPanel />}
+          {tab === 'albums' && <AdminAlbumsPanel />}
           {tab === 'messages' && <AdminEngagement />}
           {tab === 'settings' && <AdminSettings />}
         </section>
@@ -843,6 +843,585 @@ function AdminAlbums() {
       </div>
     </AdminSection>
   );
+}
+
+function AdminToolbar({ meta, children }) {
+  return (
+    <div className="admin-toolbar">
+      <div>
+        {meta ? <span>{meta}</span> : null}
+      </div>
+      <div className="admin-toolbar-actions">{children}</div>
+    </div>
+  );
+}
+
+function AdminModal({ open, title, subtitle, children, onClose, size = '' }) {
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  return (
+    <div className="admin-modal-backdrop" onMouseDown={onClose}>
+      <div className={`admin-modal ${size}`} role="dialog" aria-modal="true" aria-label={title} onMouseDown={(event) => event.stopPropagation()}>
+        <header className="admin-modal-head">
+          <div>
+            <h2>{title}</h2>
+            {subtitle ? <p>{subtitle}</p> : null}
+          </div>
+          <button className="admin-modal-close" type="button" aria-label="关闭弹窗" onClick={onClose}>
+            <X size={18} />
+          </button>
+        </header>
+        <div className="admin-modal-body">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function AdminAnalyticsPanel() {
+  const { loading, error, data } = usePageData(() => api('/admin/analytics'), []);
+  if (loading) return <Loading label="正在统计访问数据" />;
+  if (error) return <ErrorView message={error} />;
+
+  const analytics = data.analytics;
+  const cards = [
+    ['请求量', analytics.totalRequests],
+    ['访客', analytics.uniqueVisitors],
+    ['今日请求', analytics.todayRequests],
+    ['文章', analytics.articleCount],
+    ['照片', analytics.photoCount],
+    ['留言', analytics.messageCount]
+  ];
+
+  return (
+    <AdminSection title="数据概览" subtitle="请求量、访客、内容构成和地区访问趋势。">
+      <div className="stats-grid">
+        {cards.map(([label, value]) => (
+          <div className="stat-card" key={label}>
+            <span>{label}</span>
+            <strong>{value}</strong>
+          </div>
+        ))}
+      </div>
+
+      <div className="analytics-visual-grid">
+        <AdminTrendChart rows={analytics.requestTrend || []} />
+        <AdminBarChart title="省份访问排行" rows={(analytics.provinceStats || []).slice(0, 8)} labelKey="province" valueKey="count" />
+        <ContentCompositionChart
+          rows={[
+            { label: '文章', value: analytics.articleCount, tone: 'primary' },
+            { label: '照片', value: analytics.photoCount, tone: 'info' },
+            { label: '留言', value: analytics.messageCount, tone: 'danger' }
+          ]}
+        />
+      </div>
+
+      <div className="admin-columns">
+        <DataTable title="最近访问" rows={analytics.recentVisits || []} columns={['ip', 'province', 'path', 'createdAt']} />
+        <DataTable title="热门路径" rows={analytics.topPaths || []} columns={['path', 'count']} />
+      </div>
+    </AdminSection>
+  );
+}
+
+function AdminTrendChart({ rows }) {
+  const max = Math.max(1, ...rows.map((row) => Number(row.count || 0)));
+
+  return (
+    <div className="analytics-card trend-chart">
+      <h3>近 7 天请求趋势</h3>
+      <div className="trend-chart-bars">
+        {rows.map((row) => {
+          const height = Math.max(8, (Number(row.count || 0) / max) * 100);
+          return (
+            <div className="trend-chart-item" key={row.date}>
+              <div className="trend-chart-track">
+                <span style={{ height: `${height}%` }} />
+              </div>
+              <strong>{row.count}</strong>
+              <small>{formatShortDate(row.date)}</small>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function AdminBarChart({ title, rows, labelKey, valueKey }) {
+  const max = Math.max(1, ...rows.map((row) => Number(row[valueKey] || 0)));
+
+  return (
+    <div className="analytics-card bar-chart">
+      <h3>{title}</h3>
+      <div className="bar-chart-list">
+        {rows.map((row, index) => {
+          const value = Number(row[valueKey] || 0);
+          return (
+            <div className="bar-chart-row" key={`${row[labelKey]}-${index}`}>
+              <span>{row[labelKey]}</span>
+              <div className="bar-chart-track">
+                <i style={{ width: `${Math.max(4, (value / max) * 100)}%` }} />
+              </div>
+              <strong>{value}</strong>
+            </div>
+          );
+        })}
+        {rows.length === 0 ? <EmptyState text="暂无访问地区数据。" /> : null}
+      </div>
+    </div>
+  );
+}
+
+function ContentCompositionChart({ rows }) {
+  const total = rows.reduce((sum, row) => sum + Number(row.value || 0), 0);
+
+  return (
+    <div className="analytics-card composition-chart">
+      <h3>内容构成</h3>
+      <div className="composition-stack" aria-label="内容构成小图表">
+        {rows.map((row) => (
+          <span key={row.label} className={`composition-${row.tone}`} style={{ width: `${total ? (row.value / total) * 100 : 33.33}%` }} />
+        ))}
+      </div>
+      <div className="composition-list">
+        {rows.map((row) => (
+          <div key={row.label}>
+            <span className={`composition-dot composition-${row.tone}`} />
+            <strong>{row.value}</strong>
+            <small>{row.label}</small>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AdminArticlesPanel() {
+  const empty = { title: '', subtitle: '', slug: '', coverUrl: '', categoryId: '', excerpt: '', content: '# 标题\n\n正文内容', recommended: false, status: 'published' };
+  const [form, setForm] = useState(empty);
+  const [editingId, setEditingId] = useState('');
+  const [modalMode, setModalMode] = useState('');
+  const [refresh, setRefresh] = useState(0);
+  const { loading, error, data } = usePageData(async () => {
+    const [articles, categories] = await Promise.all([api('/admin/articles'), api('/admin/categories')]);
+    return { articles: articles.articles, categories: categories.categories };
+  }, [refresh]);
+  const articles = data?.articles || [];
+  const categories = data?.categories || [];
+
+  function closeModal() {
+    setModalMode('');
+    setEditingId('');
+    setForm(empty);
+  }
+
+  function openCreate() {
+    setForm(empty);
+    setEditingId('');
+    setModalMode('create');
+  }
+
+  function openEdit(article) {
+    setForm({ ...empty, ...article, categoryId: article.categoryId || '' });
+    setEditingId(article.id);
+    setModalMode('edit');
+  }
+
+  async function save(event) {
+    event.preventDefault();
+    await api(editingId ? `/admin/articles/${editingId}` : '/admin/articles', {
+      method: editingId ? 'PUT' : 'POST',
+      body: form
+    });
+    closeModal();
+    setRefresh((value) => value + 1);
+  }
+
+  async function uploadCover(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.append('file', file);
+    const result = await api('/admin/uploads', { method: 'POST', body: fd });
+    setForm((current) => ({ ...current, coverUrl: result.url }));
+  }
+
+  async function remove(id) {
+    if (!window.confirm('确定删除这篇文章吗？')) return;
+    await api(`/admin/articles/${id}`, { method: 'DELETE' });
+    setRefresh((value) => value + 1);
+  }
+
+  if (loading) return <Loading label="正在加载文章列表" />;
+  if (error) return <ErrorView message={error} />;
+
+  return (
+    <AdminSection title="文章管理" subtitle="默认先看列表，新增和编辑都在弹窗中完成。">
+      <AdminToolbar meta={`${articles.length} 篇文章`}>
+        <IconButton icon={Plus} onClick={openCreate}>新增文章</IconButton>
+      </AdminToolbar>
+
+      <div className="admin-list list-first">
+        {articles.map((article) => (
+          <div className="admin-row" key={article.id}>
+            <div>
+              <strong>{article.title}</strong>
+              <span>{article.categoryName} · {article.status} · {article.recommended ? '推荐' : '普通'}</span>
+            </div>
+            <div className="row-actions">
+              <button type="button" aria-label="编辑文章" onClick={() => openEdit(article)}><Edit3 size={17} /></button>
+              <button type="button" aria-label="删除文章" onClick={() => remove(article.id)}><Trash2 size={17} /></button>
+            </div>
+          </div>
+        ))}
+        {articles.length === 0 ? <EmptyState text="还没有文章，点击右上角新增。" /> : null}
+      </div>
+
+      <AdminModal open={Boolean(modalMode)} title={editingId ? '编辑文章' : '新增文章'} subtitle="标题、Slug、分类和正文可一次维护。" size="wide" onClose={closeModal}>
+        <form className="admin-form admin-modal-form" onSubmit={save}>
+          <input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} placeholder="标题" required />
+          <input value={form.subtitle} onChange={(event) => setForm({ ...form, subtitle: event.target.value })} placeholder="小标题" />
+          <input value={form.slug} onChange={(event) => setForm({ ...form, slug: event.target.value })} placeholder="URL Slug" />
+          <select value={form.categoryId} onChange={(event) => setForm({ ...form, categoryId: event.target.value })}>
+            <option value="">未分类</option>
+            {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+          </select>
+          <div className="inline-fields">
+            <label><input type="checkbox" checked={form.recommended} onChange={(event) => setForm({ ...form, recommended: event.target.checked })} />推荐</label>
+            <select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}>
+              <option value="published">发布</option>
+              <option value="draft">草稿</option>
+            </select>
+            <label className="file-button"><Upload size={17} />上传封面<input type="file" accept="image/*" onChange={uploadCover} /></label>
+          </div>
+          <input value={form.coverUrl} onChange={(event) => setForm({ ...form, coverUrl: event.target.value })} placeholder="封面 URL" />
+          <input value={form.excerpt} onChange={(event) => setForm({ ...form, excerpt: event.target.value })} placeholder="摘要" />
+          <textarea className="markdown-editor" value={form.content} onChange={(event) => setForm({ ...form, content: event.target.value })} />
+          <div className="modal-actions">
+            <button className="admin-secondary-button" type="button" onClick={closeModal}>取消</button>
+            <IconButton icon={Save}>{editingId ? '保存修改' : '新增文章'}</IconButton>
+          </div>
+        </form>
+      </AdminModal>
+    </AdminSection>
+  );
+}
+
+function AdminCategoriesPanel() {
+  const empty = { name: '', slug: '', description: '' };
+  const [form, setForm] = useState(empty);
+  const [editingId, setEditingId] = useState('');
+  const [modalMode, setModalMode] = useState('');
+  const [refresh, setRefresh] = useState(0);
+  const { loading, error, data } = usePageData(() => api('/admin/categories'), [refresh]);
+  const categories = data?.categories || [];
+
+  function closeModal() {
+    setModalMode('');
+    setEditingId('');
+    setForm(empty);
+  }
+
+  function openCreate() {
+    setForm(empty);
+    setEditingId('');
+    setModalMode('create');
+  }
+
+  function openEdit(category) {
+    setForm({ ...empty, ...category });
+    setEditingId(category.id);
+    setModalMode('edit');
+  }
+
+  async function save(event) {
+    event.preventDefault();
+    await api(editingId ? `/admin/categories/${editingId}` : '/admin/categories', {
+      method: editingId ? 'PUT' : 'POST',
+      body: form
+    });
+    closeModal();
+    setRefresh((value) => value + 1);
+  }
+
+  async function remove(id) {
+    if (!window.confirm('确定删除这个分类吗？相关文章会变成未分类。')) return;
+    await api(`/admin/categories/${id}`, { method: 'DELETE' });
+    setRefresh((value) => value + 1);
+  }
+
+  if (loading) return <Loading label="正在加载分类列表" />;
+  if (error) return <ErrorView message={error} />;
+
+  return (
+    <AdminSection title="分类管理" subtitle="默认展示分类列表，新增和编辑使用同一个弹窗。">
+      <AdminToolbar meta={`${categories.length} 个分类`}>
+        <IconButton icon={Plus} onClick={openCreate}>新增分类</IconButton>
+      </AdminToolbar>
+
+      <div className="admin-list list-first">
+        {categories.map((category) => (
+          <div className="admin-row" key={category.id}>
+            <div><strong>{category.name}</strong><span>{category.slug} · {category.description || '暂无描述'}</span></div>
+            <div className="row-actions">
+              <button type="button" aria-label="编辑分类" onClick={() => openEdit(category)}><Edit3 size={17} /></button>
+              <button type="button" aria-label="删除分类" onClick={() => remove(category.id)}><Trash2 size={17} /></button>
+            </div>
+          </div>
+        ))}
+        {categories.length === 0 ? <EmptyState text="还没有分类，点击右上角新增。" /> : null}
+      </div>
+
+      <AdminModal open={Boolean(modalMode)} title={editingId ? '编辑分类' : '新增分类'} subtitle="填写分类名、Slug 和描述。" onClose={closeModal}>
+        <form className="admin-form admin-modal-form" onSubmit={save}>
+          <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="分类名称" required />
+          <input value={form.slug} onChange={(event) => setForm({ ...form, slug: event.target.value })} placeholder="Slug" />
+          <input value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="描述" />
+          <div className="modal-actions">
+            <button className="admin-secondary-button" type="button" onClick={closeModal}>取消</button>
+            <IconButton icon={Save}>{editingId ? '保存分类' : '新增分类'}</IconButton>
+          </div>
+        </form>
+      </AdminModal>
+    </AdminSection>
+  );
+}
+
+function AdminAlbumsPanel() {
+  const emptyAlbum = { title: '', folder: '', description: '', coverUrl: '' };
+  const emptyPhoto = { albumId: '', title: '', caption: '', imageUrl: '', shotAt: new Date().toISOString().slice(0, 10) };
+  const [albumForm, setAlbumForm] = useState(emptyAlbum);
+  const [photoForm, setPhotoForm] = useState(emptyPhoto);
+  const [editingAlbumId, setEditingAlbumId] = useState('');
+  const [editingPhotoId, setEditingPhotoId] = useState('');
+  const [modalMode, setModalMode] = useState('');
+  const [selectedPhotoFiles, setSelectedPhotoFiles] = useState([]);
+  const [refresh, setRefresh] = useState(0);
+  const { loading, error, data } = usePageData(() => api('/admin/albums'), [refresh]);
+  const albums = data?.albums || [];
+
+  function closeModal() {
+    setModalMode('');
+    setAlbumForm(emptyAlbum);
+    setPhotoForm((current) => ({ ...emptyPhoto, albumId: current.albumId }));
+    setEditingAlbumId('');
+    setEditingPhotoId('');
+    setSelectedPhotoFiles([]);
+  }
+
+  function openAlbumCreate() {
+    setAlbumForm(emptyAlbum);
+    setEditingAlbumId('');
+    setModalMode('album');
+  }
+
+  function openAlbumEdit(album) {
+    setAlbumForm({ ...emptyAlbum, ...album });
+    setEditingAlbumId(album.id);
+    setModalMode('album');
+  }
+
+  function openPhotoCreate(albumId = photoForm.albumId) {
+    setPhotoForm({ ...emptyPhoto, albumId: albumId || '' });
+    setEditingPhotoId('');
+    setSelectedPhotoFiles([]);
+    setModalMode('photo');
+  }
+
+  function openPhotoEdit(photo) {
+    setPhotoForm({ ...emptyPhoto, ...photo, albumId: photo.albumId || '' });
+    setEditingPhotoId(photo.id);
+    setSelectedPhotoFiles([]);
+    setModalMode('photo');
+  }
+
+  async function saveAlbum(event) {
+    event.preventDefault();
+    await api(editingAlbumId ? `/admin/albums/${editingAlbumId}` : '/admin/albums', {
+      method: editingAlbumId ? 'PUT' : 'POST',
+      body: albumForm
+    });
+    closeModal();
+    setRefresh((value) => value + 1);
+  }
+
+  function choosePhotoFiles(event) {
+    const files = Array.from(event.target.files || []);
+    setSelectedPhotoFiles(files.map((file) => ({
+      file,
+      title: titleFromFile(file.name),
+      caption: ''
+    })));
+  }
+
+  function updateSelectedPhoto(index, patch) {
+    setSelectedPhotoFiles((files) => files.map((item, itemIndex) => (
+      itemIndex === index ? { ...item, ...patch } : item
+    )));
+  }
+
+  async function uploadSinglePhoto(file) {
+    const fd = new FormData();
+    fd.append('file', file);
+    return api('/admin/uploads', { method: 'POST', body: fd });
+  }
+
+  async function savePhoto(event) {
+    event.preventDefault();
+    if (editingPhotoId) {
+      await api(`/admin/photos/${editingPhotoId}`, { method: 'PUT', body: photoForm });
+    } else if (selectedPhotoFiles.length > 0) {
+      await Promise.all(selectedPhotoFiles.map(async (item) => {
+        const uploaded = await uploadSinglePhoto(item.file);
+        return api('/admin/photos', {
+          method: 'POST',
+          body: {
+            albumId: photoForm.albumId,
+            shotAt: photoForm.shotAt,
+            imageUrl: uploaded.url,
+            title: item.title || titleFromFile(item.file.name),
+            caption: item.caption
+          }
+        });
+      }));
+    } else {
+      await api('/admin/photos', { method: 'POST', body: photoForm });
+    }
+    closeModal();
+    setRefresh((value) => value + 1);
+  }
+
+  async function removeAlbum(id) {
+    if (!window.confirm('确定删除这个相册吗？相册内照片也会删除。')) return;
+    await api(`/admin/albums/${id}`, { method: 'DELETE' });
+    setRefresh((value) => value + 1);
+  }
+
+  async function removePhoto(id) {
+    if (!window.confirm('确定删除这张照片吗？')) return;
+    await api(`/admin/photos/${id}`, { method: 'DELETE' });
+    setRefresh((value) => value + 1);
+  }
+
+  if (loading) return <Loading label="正在加载相册列表" />;
+  if (error) return <ErrorView message={error} />;
+
+  return (
+    <AdminSection title="相册管理" subtitle="默认查看相册和照片，新增内容从右上角进入弹窗。">
+      <AdminToolbar meta={`${albums.length} 个相册`}>
+        <IconButton icon={Folder} onClick={openAlbumCreate}>新增相册</IconButton>
+        <IconButton icon={ImagePlus} onClick={() => openPhotoCreate()}>新增照片</IconButton>
+      </AdminToolbar>
+
+      <div className="admin-list album-list-first">
+        {albums.map((album) => (
+          <div className="album-admin" key={album.id}>
+            <div className="album-admin-head">
+              <div>
+                <h3>{album.title}</h3>
+                <p>{album.folder} · {album.description || '暂无描述'}</p>
+              </div>
+              <div className="row-actions">
+                <button type="button" aria-label="给相册新增照片" onClick={() => openPhotoCreate(album.id)}><ImagePlus size={17} /></button>
+                <button type="button" aria-label="编辑相册" onClick={() => openAlbumEdit(album)}><Edit3 size={17} /></button>
+                <button type="button" aria-label="删除相册" onClick={() => removeAlbum(album.id)}><Trash2 size={17} /></button>
+              </div>
+            </div>
+            <div className="photo-admin-list">
+              {(album.photos || []).map((photo) => (
+                <div className="photo-admin-row" key={photo.id}>
+                  <img src={photo.imageUrl} alt={photo.title} />
+                  <div>
+                    <strong>{photo.title}</strong>
+                    <span>{photo.shotAt} · {photo.caption || '暂无说明'}</span>
+                  </div>
+                  <div className="row-actions">
+                    <button type="button" aria-label="编辑照片" onClick={() => openPhotoEdit(photo)}><Edit3 size={17} /></button>
+                    <button type="button" aria-label="删除照片" onClick={() => removePhoto(photo.id)}><Trash2 size={17} /></button>
+                  </div>
+                </div>
+              ))}
+              {(album.photos || []).length === 0 ? <EmptyState text="这个相册还没有照片。" /> : null}
+            </div>
+          </div>
+        ))}
+        {albums.length === 0 ? <EmptyState text="还没有相册，点击右上角新增。" /> : null}
+      </div>
+
+      <AdminModal open={modalMode === 'album'} title={editingAlbumId ? '编辑相册' : '新增相册'} subtitle="填写相册名、文件夹标识、描述和封面。" onClose={closeModal}>
+        <form className="admin-form admin-modal-form" onSubmit={saveAlbum}>
+          <input value={albumForm.title} onChange={(event) => setAlbumForm({ ...albumForm, title: event.target.value })} placeholder="相册名" required />
+          <input value={albumForm.folder} onChange={(event) => setAlbumForm({ ...albumForm, folder: event.target.value })} placeholder="文件夹标识" />
+          <input value={albumForm.description} onChange={(event) => setAlbumForm({ ...albumForm, description: event.target.value })} placeholder="描述" />
+          <input value={albumForm.coverUrl} onChange={(event) => setAlbumForm({ ...albumForm, coverUrl: event.target.value })} placeholder="封面 URL" />
+          <div className="modal-actions">
+            <button className="admin-secondary-button" type="button" onClick={closeModal}>取消</button>
+            <IconButton icon={Save}>{editingAlbumId ? '保存相册' : '新增相册'}</IconButton>
+          </div>
+        </form>
+      </AdminModal>
+
+      <AdminModal open={modalMode === 'photo'} title={editingPhotoId ? '编辑照片' : '新增照片'} subtitle="可一次选择多张图片，并统一设置相册和日期。" size="wide" onClose={closeModal}>
+        <form className="admin-form admin-modal-form" onSubmit={savePhoto}>
+          <div className="photo-batch-top">
+            <select value={photoForm.albumId} onChange={(event) => setPhotoForm({ ...photoForm, albumId: event.target.value })} required>
+              <option value="">选择相册</option>
+              {albums.map((album) => <option key={album.id} value={album.id}>{album.title}</option>)}
+            </select>
+            <input type="date" value={photoForm.shotAt} onChange={(event) => setPhotoForm({ ...photoForm, shotAt: event.target.value })} />
+            {!editingPhotoId ? (
+              <label className="file-button"><ImagePlus size={17} />选择图片<input type="file" accept="image/*" multiple onChange={choosePhotoFiles} /></label>
+            ) : null}
+          </div>
+
+          {selectedPhotoFiles.length > 0 ? (
+            <div className="photo-batch-list">
+              {selectedPhotoFiles.map((item, index) => (
+                <div className="photo-batch-row" key={`${item.file.name}-${index}`}>
+                  <span>{item.file.name}</span>
+                  <input value={item.title} onChange={(event) => updateSelectedPhoto(index, { title: event.target.value })} placeholder="标题" />
+                  <input value={item.caption} onChange={(event) => updateSelectedPhoto(index, { caption: event.target.value })} placeholder="说明" />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <>
+              <input value={photoForm.title} onChange={(event) => setPhotoForm({ ...photoForm, title: event.target.value })} placeholder="照片标题" required />
+              <input value={photoForm.imageUrl} onChange={(event) => setPhotoForm({ ...photoForm, imageUrl: event.target.value })} placeholder="照片 URL" required />
+              <input value={photoForm.caption} onChange={(event) => setPhotoForm({ ...photoForm, caption: event.target.value })} placeholder="说明" />
+            </>
+          )}
+
+          <div className="modal-actions">
+            <button className="admin-secondary-button" type="button" onClick={closeModal}>取消</button>
+            <IconButton icon={Save}>{editingPhotoId ? '保存照片' : '新增照片'}</IconButton>
+          </div>
+        </form>
+      </AdminModal>
+    </AdminSection>
+  );
+}
+
+function formatShortDate(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  return `${date.getMonth() + 1}/${date.getDate()}`;
+}
+
+function titleFromFile(name) {
+  return String(name || '')
+    .replace(/\.[^.]+$/, '')
+    .replace(/[-_]+/g, ' ')
+    .trim() || '未命名照片';
 }
 
 function AdminEngagement() {

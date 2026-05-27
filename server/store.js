@@ -561,6 +561,15 @@ export function createStore(dbPath, { seedDemo = false } = {}) {
         acc[value] = (acc[value] || 0) + 1;
         return acc;
       }, {});
+      const requestTrend = Array.from({ length: 7 }, (_item, index) => {
+        const date = new Date();
+        date.setUTCDate(date.getUTCDate() - (6 - index));
+        const key = date.toISOString().slice(0, 10);
+        return {
+          date: key,
+          count: data.visits.filter((visit) => visit.createdAt.startsWith(key)).length
+        };
+      });
       const topPaths = Object.entries(countBy('path'))
         .map(([pathName, count]) => ({ path: pathName, count }))
         .sort((a, b) => b.count - a.count)
@@ -578,6 +587,7 @@ export function createStore(dbPath, { seedDemo = false } = {}) {
         photoCount: data.photos.length,
         commentCount: data.comments.length,
         messageCount: data.messages.length,
+        requestTrend,
         topPaths,
         provinceStats,
         recentVisits: [...data.visits]

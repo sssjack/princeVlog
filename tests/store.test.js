@@ -90,5 +90,10 @@ describe('content store', () => {
       ip: '8.8.8.8',
       province: 'California'
     });
+    expect(analytics.requestTrend).toHaveLength(7);
+    expect(analytics.requestTrend.at(-1)).toMatchObject({
+      date: new Date().toISOString().slice(0, 10),
+      count: 1
+    });
   });
 });
