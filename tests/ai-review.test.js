@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import http from 'node:http';
 import {
   generateArticleReview,
   getArticleReviewSourceHash,
@@ -67,5 +68,40 @@ describe('article AI review', () => {
       content: `${article.content}\n\n补充一句。`,
       aiReview: { status: 'ready', content: 'ok', sourceHash }
     })).toBe(true);
+  });
+
+  it('can call DeepSeek through the Node HTTP fallback when fetch is unavailable', async () => {
+    const server = http.createServer((req, res) => {
+      let body = '';
+      req.on('data', (chunk) => {
+        body += chunk;
+      });
+      req.on('end', () => {
+        expect(req.method).toBe('POST');
+        expect(req.headers.authorization).toBe('Bearer test-key');
+        expect(JSON.parse(body).model).toBe('deepseek-v4-pro');
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({
+          choices: [{ message: { content: 'HTTP fallback 点评内容' } }]
+        }));
+      });
+    });
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const { port } = server.address();
+
+    try {
+      const result = await generateArticleReview(article, {
+        env: {
+          DEEPSEEK_API_URL: `http://127.0.0.1:${port}/chat/completions`,
+          DEEPSEEK_API_KEY: 'test-key',
+          DEEPSEEK_MODEL: 'deepseek-v4-pro'
+        },
+        fetchImpl: null
+      });
+
+      expect(result.content).toBe('HTTP fallback 点评内容');
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
   });
 });

@@ -1,4 +1,6 @@
 import crypto from 'node:crypto';
+import http from 'node:http';
+import https from 'node:https';
 
 const DEFAULT_DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions';
 const DEFAULT_DEEPSEEK_MODEL = 'deepseek-v4-pro';
@@ -42,6 +44,45 @@ export function needsArticleAiReview(article) {
     || review.sourceHash !== getArticleReviewSourceHash(article);
 }
 
+function postJsonWithNodeHttp(url, payload, headers = {}) {
+  return new Promise((resolve, reject) => {
+    const body = JSON.stringify(payload);
+    const target = new URL(url);
+    const transport = target.protocol === 'http:' ? http : https;
+    const request = transport.request({
+      method: 'POST',
+      hostname: target.hostname,
+      port: target.port || undefined,
+      path: `${target.pathname}${target.search}`,
+      headers: {
+        ...headers,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body)
+      }
+    }, (response) => {
+      let raw = '';
+      response.setEncoding('utf8');
+      response.on('data', (chunk) => {
+        raw += chunk;
+      });
+      response.on('end', () => {
+        resolve({
+          ok: response.statusCode >= 200 && response.statusCode < 300,
+          status: response.statusCode,
+          json: async () => (raw ? JSON.parse(raw) : {})
+        });
+      });
+    });
+
+    request.on('error', reject);
+    request.setTimeout(60_000, () => {
+      request.destroy(new Error('DeepSeek request timed out'));
+    });
+    request.write(body);
+    request.end();
+  });
+}
+
 export async function generateArticleReview(article, {
   env = process.env,
   fetchImpl = globalThis.fetch
@@ -49,9 +90,6 @@ export async function generateArticleReview(article, {
   const apiKey = cleanText(env.DEEPSEEK_API_KEY);
   if (!apiKey) {
     throw new Error('DEEPSEEK_API_KEY is not configured');
-  }
-  if (typeof fetchImpl !== 'function') {
-    throw new Error('fetch is not available for DeepSeek requests');
   }
 
   const apiUrl = cleanText(env.DEEPSEEK_API_URL, DEFAULT_DEEPSEEK_API_URL);
@@ -77,14 +115,17 @@ export async function generateArticleReview(article, {
     max_tokens: 600
   };
 
-  const response = await fetchImpl(apiUrl, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(payload)
-  });
+  const headers = { Authorization: `Bearer ${apiKey}` };
+  const response = typeof fetchImpl === 'function'
+    ? await fetchImpl(apiUrl, {
+      method: 'POST',
+      headers: {
+        ...headers,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    })
+    : await postJsonWithNodeHttp(apiUrl, payload, headers);
 
   if (!response.ok) {
     throw new Error(`DeepSeek request failed with status ${response.status}`);
