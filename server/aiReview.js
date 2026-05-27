@@ -112,7 +112,7 @@ export async function generateArticleReview(article, {
       }
     ],
     temperature: 0.55,
-    max_tokens: 600
+    max_tokens: 1200
   };
 
   const headers = { Authorization: `Bearer ${apiKey}` };

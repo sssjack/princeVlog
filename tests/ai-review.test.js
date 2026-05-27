@@ -40,6 +40,7 @@ describe('article AI review', () => {
     expect(request.body).not.toContain('test-key');
     const payload = JSON.parse(request.body);
     expect(payload.model).toBe('deepseek-v4-pro');
+    expect(payload.max_tokens).toBe(1200);
     expect(payload.messages[1].content).toContain(article.title);
     expect(payload.messages[1].content).toContain(article.content);
     expect(result).toMatchObject({
