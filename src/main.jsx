@@ -276,6 +276,7 @@ function HomePage({ navigate }) {
   const albums = data?.albums || [];
   const mottoes = settings.mottoes || [];
   const heroThought = mottoes[0] || '把时间交给热爱，答案会在静处慢慢长出来。';
+  const mottoLoop = mottoes.length > 0 ? mottoes : [heroThought];
   const heroSignals = [
     { label: '推荐', value: recommended.length },
     { label: '最新', value: latest.length },
@@ -318,11 +319,17 @@ function HomePage({ navigate }) {
         </div>
       </section>
 
-      <section className="motto-strip">
-        <div className="motto-track">
-          {[...mottoes, ...mottoes].map((item, index) => (
-            <span key={`${item}-${index}`}>{item}</span>
-          ))}
+      <section
+        className="motto-stage"
+        aria-label="人生格言轮播"
+        style={{ '--motto-duration': `${Math.max(mottoLoop.length, 1) * 5.6}s` }}
+      >
+        <div className="motto-stage-inner">
+          <div className={`motto-fade-stack ${mottoLoop.length === 1 ? 'single' : ''}`}>
+            {mottoLoop.map((item, index) => (
+              <p key={`${item}-${index}`} style={{ '--motto-index': index }}>{item}</p>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -1613,7 +1620,7 @@ function AdminSettings() {
   }
 
   return (
-    <AdminSection title="站点设置" subtitle="首页标题、副标题和滚动人生格言都在这里维护。">
+    <AdminSection title="站点设置" subtitle="首页标题、副标题和渐隐人生格言都在这里维护。">
       <form className="admin-form" onSubmit={save}>
         <input value={form.siteTitle} onChange={(event) => setForm({ ...form, siteTitle: event.target.value })} placeholder="站点标题" />
         <input value={form.ownerName} onChange={(event) => setForm({ ...form, ownerName: event.target.value })} placeholder="作者名" />

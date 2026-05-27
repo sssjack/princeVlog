@@ -53,6 +53,15 @@ describe('public home visual theme', () => {
     expect(styles).toContain('backdrop-filter: blur');
   });
 
+  it('shows mottoes as centered fading statements instead of a horizontal ticker', () => {
+    expect(mainSource).toContain('motto-stage');
+    expect(mainSource).toContain('motto-fade-stack');
+    expect(mainSource).not.toContain('motto-track');
+    expect(styles).toContain('.motto-stage');
+    expect(styles).toContain('@keyframes motto-fade');
+    expect(styles).toContain('animation-delay: calc(var(--motto-index)');
+  });
+
   it('keeps public navigation compact on small screens', () => {
     expect(mainSource).toContain('aria-label="首页"');
     expect(mainSource).toContain('<Home size={17} /><span>首页</span>');

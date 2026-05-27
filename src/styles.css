@@ -277,38 +277,104 @@ img {
   box-shadow: none;
 }
 
-/* ─── Motto Strip ─── */
+/* ─── Motto Stage ─── */
 
-.motto-strip {
-  overflow: hidden;
-  border-block: 1px solid var(--line);
-  background: #fff;
+.motto-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: clamp(160px, 22vw, 238px);
+  padding: 42px 24px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.68), transparent 58%),
+    #fff;
+  text-align: center;
+  isolation: isolate;
 }
 
-.motto-track {
-  display: flex;
-  width: max-content;
-  animation: motto 40s linear infinite;
+.motto-stage::before {
+  content: "";
+  position: absolute;
+  inset: 18px 8%;
+  z-index: -1;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, var(--accent-soft), transparent);
+  filter: blur(24px);
+  opacity: 0.8;
 }
 
-.motto-track span {
-  display: inline-flex;
-  align-items: center;
-  height: 56px;
-  padding: 0 48px;
-  color: var(--muted);
-  font-size: 14px;
+.motto-stage-inner {
+  position: relative;
+  width: min(880px, 100%);
+  display: grid;
+  place-items: center;
+}
+
+.motto-stage-inner::before {
+  content: "";
+  width: min(380px, 64%);
+  height: 1px;
+  margin-bottom: 26px;
+  background: linear-gradient(90deg, transparent, var(--accent), var(--accent-light), transparent);
+  opacity: 0.62;
+}
+
+.motto-fade-stack {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: clamp(84px, 10vw, 126px);
+}
+
+.motto-fade-stack p {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--display-font, Georgia, serif);
+  font-size: clamp(20px, 2.2vw, 34px);
   font-weight: 500;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
+  line-height: 1.8;
+  opacity: 0;
+  filter: blur(7px);
+  transform: translateY(16px) scale(0.98);
+  animation: motto-fade var(--motto-duration, 16.8s) cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  animation-delay: calc(var(--motto-index) * 5.6s);
+  text-wrap: balance;
 }
 
-@keyframes motto {
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
+.motto-fade-stack.single p {
+  opacity: 1;
+  filter: none;
+  transform: none;
+  animation: none;
 }
 
-/* ─── Content Sections ─── */
+@keyframes motto-fade {
+  0%,
+  6% {
+    opacity: 0;
+    filter: blur(7px);
+    transform: translateY(16px) scale(0.98);
+  }
+
+  12%,
+  30% {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0) scale(1);
+  }
+
+  38%,
+  100% {
+    opacity: 0;
+    filter: blur(7px);
+    transform: translateY(-16px) scale(0.99);
+  }
+}
 
 .content-band,
 .split-band,
@@ -3164,14 +3230,14 @@ th {
   font-weight: 650;
 }
 
-.public-shell .motto-strip {
+.public-shell .motto-stage {
   border-block: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.72);
   backdrop-filter: blur(14px);
 }
 
-.public-shell .motto-track span {
-  color: var(--muted);
+.public-shell .motto-fade-stack p {
+  color: var(--ink);
 }
 
 .public-shell .content-band,
@@ -3455,6 +3521,17 @@ th {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+  }
+
+  .motto-fade-stack p {
+    opacity: 0;
+    filter: none;
+    transform: none;
+    animation: none !important;
+  }
+
+  .motto-fade-stack p:first-child {
+    opacity: 1;
   }
 }
 
@@ -3828,7 +3905,7 @@ th {
   font-size: 13px;
 }
 
-.public-shell .motto-strip {
+.public-shell .motto-stage {
   border-color: var(--line);
   background: rgba(2, 6, 23, 0.68);
 }
@@ -4219,8 +4296,8 @@ th {
     var(--panel);
 }
 
-.public-shell[data-theme="lumen"] .motto-strip,
-.public-shell[data-theme="paper"] .motto-strip,
+.public-shell[data-theme="lumen"] .motto-stage,
+.public-shell[data-theme="paper"] .motto-stage,
 .public-shell[data-theme="lumen"] .site-footer,
 .public-shell[data-theme="paper"] .site-footer {
   background: rgba(255, 255, 255, 0.7);
@@ -4305,5 +4382,23 @@ th {
 
   .hero-primary-panel .hero-signal-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .motto-stage {
+    min-height: 180px;
+    padding: 34px 18px;
+  }
+
+  .motto-stage-inner::before {
+    margin-bottom: 20px;
+  }
+
+  .motto-fade-stack {
+    min-height: 118px;
+  }
+
+  .motto-fade-stack p {
+    font-size: 21px;
+    line-height: 1.75;
   }
 }
