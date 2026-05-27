@@ -37,7 +37,44 @@ describe('content store', () => {
     expect(articles[0]).toMatchObject({
       title: '第一次远行',
       categoryName: '旅行手记',
-      recommended: true
+      recommended: true,
+      aiReview: { status: 'pending', content: '' }
+    });
+  });
+
+  it('tracks AI review status and resets it when article text changes', async () => {
+    const article = await store.createArticle({
+      title: '一段风景',
+      slug: 'landscape-note',
+      content: '旧正文',
+      status: 'published'
+    });
+
+    await store.setArticleAiReview(article.id, {
+      status: 'ready',
+      content: 'AI 点评内容',
+      sourceHash: 'old-hash',
+      model: 'deepseek-v4-pro'
+    });
+    const reviewed = await store.getArticle(article.id);
+    expect(reviewed.aiReview).toMatchObject({
+      status: 'ready',
+      content: 'AI 点评内容',
+      sourceHash: 'old-hash',
+      model: 'deepseek-v4-pro'
+    });
+
+    const updated = await store.updateArticle(article.id, {
+      title: '一段风景',
+      slug: 'landscape-note',
+      content: '新正文',
+      status: 'published'
+    });
+
+    expect(updated.aiReview).toMatchObject({
+      status: 'pending',
+      content: 'AI 点评内容',
+      sourceHash: ''
     });
   });
 

@@ -474,6 +474,7 @@ function ArticleDetailPage({ identifier }) {
         </div>
       </header>
       <Markdown content={article.content} />
+      <AiReviewBlock review={article.aiReview} />
       <section className="comment-section">
         <h2>评论</h2>
         <form className="comment-form" onSubmit={submitComment}>
@@ -492,6 +493,21 @@ function ArticleDetailPage({ identifier }) {
         </div>
       </section>
     </article>
+  );
+}
+
+function AiReviewBlock({ review }) {
+  if (review?.status !== 'ready' || !review.content) return null;
+
+  return (
+    <section className="ai-review-block">
+      <div className="ai-review-title">
+        <Sparkles size={18} />
+        <span>AI 点评</span>
+      </div>
+      <p>{review.content}</p>
+      <small>{review.model || 'DeepSeek'} · {formatDate(review.updatedAt)}</small>
+    </section>
   );
 }
 
@@ -826,7 +842,7 @@ function AdminArticles() {
           <div className="admin-row" key={article.id}>
             <div>
               <strong>{article.title}</strong>
-              <span>{article.categoryName} · {article.status} · {article.recommended ? '推荐' : '普通'}</span>
+              <span>{article.categoryName} · {article.status} · {article.recommended ? '推荐' : '普通'} · {article.aiReview?.status === 'ready' ? '已点评' : '待点评'}</span>
             </div>
             <div className="row-actions">
               <button onClick={() => { setEditingId(article.id); setForm({ ...empty, ...article }); }}><Edit3 size={17} /></button>
@@ -1189,7 +1205,7 @@ function AdminArticlesPanel() {
           <div className="admin-row" key={article.id}>
             <div>
               <strong>{article.title}</strong>
-              <span>{article.categoryName} · {article.status} · {article.recommended ? '推荐' : '普通'}</span>
+              <span>{article.categoryName} · {article.status} · {article.recommended ? '推荐' : '普通'} · {article.aiReview?.status === 'ready' ? '已点评' : '待点评'}</span>
             </div>
             <div className="row-actions">
               <button type="button" aria-label="编辑文章" onClick={() => openEdit(article)}><Edit3 size={17} /></button>

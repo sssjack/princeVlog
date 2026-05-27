@@ -8,6 +8,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { mkdir } from 'node:fs/promises';
 import { createAdminAuth, hashPassword } from './auth.js';
+import { createArticleReviewQueue } from './aiReview.js';
 import { locationForIp, normalizeIp } from './geo.js';
 import { createStore } from './store.js';
 
@@ -132,6 +133,7 @@ export async function createApp() {
   const distDir = path.join(projectRoot, 'dist');
   const store = createStore(process.env.DB_PATH || path.join(dataDir, 'data.json'), { seedDemo: true });
   await store.init();
+  const articleReviewer = createArticleReviewQueue({ store });
   await mkdir(uploadDir, { recursive: true });
   const auth = await buildAuth();
   const upload = createUpload(uploadDir);
@@ -278,11 +280,19 @@ export async function createApp() {
   }));
 
   router.post('/api/admin/articles', adminOnly, asyncHandler(async (req, res) => {
-    res.status(201).json({ article: await store.createArticle(articlePayload(req.body)) });
+    const article = await store.createArticle(articlePayload(req.body));
+    articleReviewer.enqueueArticle(article);
+    res.status(201).json({ article });
   }));
 
   router.put('/api/admin/articles/:id', adminOnly, asyncHandler(async (req, res) => {
-    res.json({ article: await store.updateArticle(req.params.id, articlePayload(req.body)) });
+    const article = await store.updateArticle(req.params.id, articlePayload(req.body));
+    articleReviewer.enqueueArticle(article);
+    res.json({ article });
+  }));
+
+  router.post('/api/admin/articles/ai-reviews/backfill', adminOnly, asyncHandler(async (_req, res) => {
+    res.json(await articleReviewer.enqueueMissingReviews());
   }));
 
   router.delete('/api/admin/articles/:id', adminOnly, asyncHandler(async (req, res) => {
@@ -368,6 +378,10 @@ export async function createApp() {
   app.use((error, _req, res, _next) => {
     console.error(error);
     res.status(500).json({ error: error.message || '服务器错误' });
+  });
+
+  articleReviewer.enqueueMissingReviews().catch((error) => {
+    console.error('article AI review backfill failed', error);
   });
 
   return app;

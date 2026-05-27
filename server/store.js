@@ -44,6 +44,37 @@ function dateOnly(value) {
   return now().slice(0, 10);
 }
 
+function normalizeAiReview(value, timestamp = now()) {
+  const review = value && typeof value === 'object' ? value : {};
+  const status = ['pending', 'ready', 'failed'].includes(review.status) ? review.status : 'pending';
+  return {
+    status,
+    content: cleanText(review.content),
+    sourceHash: cleanText(review.sourceHash),
+    model: cleanText(review.model),
+    error: cleanText(review.error),
+    updatedAt: cleanText(review.updatedAt, timestamp)
+  };
+}
+
+function pendingAiReview(previous, timestamp = now()) {
+  const review = normalizeAiReview(previous, timestamp);
+  return {
+    ...review,
+    status: 'pending',
+    sourceHash: '',
+    error: '',
+    updatedAt: timestamp
+  };
+}
+
+function normalizeArticle(article) {
+  return {
+    ...article,
+    aiReview: normalizeAiReview(article?.aiReview, article?.updatedAt || now())
+  };
+}
+
 function makeSlug(value, fallback) {
   const slug = cleanText(value)
     .toLowerCase()
@@ -129,7 +160,7 @@ function defaultData(seedDemo = false) {
       ]
     },
     categories: demo.categories || [],
-    articles: demo.articles || [],
+    articles: (demo.articles || []).map(normalizeArticle),
     albums: demo.albums || [],
     photos: demo.photos || [],
     comments: [],
@@ -145,7 +176,7 @@ function normalizeData(data) {
     ...data,
     settings: { ...base.settings, ...(data?.settings || {}) },
     categories: Array.isArray(data?.categories) ? data.categories : [],
-    articles: Array.isArray(data?.articles) ? data.articles : [],
+    articles: Array.isArray(data?.articles) ? data.articles.map(normalizeArticle) : [],
     albums: Array.isArray(data?.albums) ? data.albums : [],
     photos: Array.isArray(data?.photos) ? data.photos : [],
     comments: Array.isArray(data?.comments) ? data.comments : [],
@@ -310,6 +341,7 @@ export function createStore(dbPath, { seedDemo = false } = {}) {
           recommended: toBool(input.recommended),
           status: input.status === 'draft' ? 'draft' : 'published',
           viewCount: 0,
+          aiReview: pendingAiReview(null, timestamp),
           createdAt: timestamp,
           updatedAt: timestamp
         };
@@ -325,7 +357,7 @@ export function createStore(dbPath, { seedDemo = false } = {}) {
         if (!article) throw new Error('article not found');
         const nextSlug = makeSlug(input.slug || article.slug);
         assertUniqueSlug(data.articles, nextSlug, articleId);
-        Object.assign(article, {
+        const nextArticle = {
           title: cleanText(input.title, article.title),
           subtitle: cleanText(input.subtitle, article.subtitle),
           slug: nextSlug,
@@ -334,9 +366,35 @@ export function createStore(dbPath, { seedDemo = false } = {}) {
           content: input.content === undefined ? article.content : String(input.content),
           excerpt: cleanText(input.excerpt, article.excerpt),
           recommended: input.recommended === undefined ? article.recommended : toBool(input.recommended),
-          status: input.status === 'draft' ? 'draft' : 'published',
-          updatedAt: now()
+          status: input.status === 'draft' ? 'draft' : 'published'
+        };
+        const reviewSourceChanged = ['title', 'subtitle', 'content', 'excerpt', 'status']
+          .some((key) => article[key] !== nextArticle[key]);
+        const timestamp = now();
+        Object.assign(article, {
+          ...nextArticle,
+          aiReview: reviewSourceChanged ? pendingAiReview(article.aiReview, timestamp) : normalizeAiReview(article.aiReview, timestamp),
+          updatedAt: timestamp
         });
+        return projectArticle(article);
+      });
+    },
+
+    async setArticleAiReview(articleId, input) {
+      return enqueueWrite(async () => {
+        const article = data.articles.find((item) => item.id === articleId);
+        if (!article) throw new Error('article not found');
+        const timestamp = now();
+        const current = normalizeAiReview(article.aiReview, timestamp);
+        article.aiReview = {
+          ...current,
+          status: ['pending', 'ready', 'failed'].includes(input.status) ? input.status : current.status,
+          content: input.content === undefined ? current.content : cleanText(input.content).slice(0, 2000),
+          sourceHash: input.sourceHash === undefined ? current.sourceHash : cleanText(input.sourceHash),
+          model: input.model === undefined ? current.model : cleanText(input.model),
+          error: input.error === undefined ? current.error : cleanText(input.error).slice(0, 500),
+          updatedAt: cleanText(input.updatedAt, timestamp)
+        };
         return projectArticle(article);
       });
     },

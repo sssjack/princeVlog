@@ -863,6 +863,51 @@ blockquote {
   margin: 24px 0;
 }
 
+.ai-review-block {
+  position: relative;
+  margin-top: 24px;
+  padding: 28px 32px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--accent), transparent 62%);
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent), transparent 88%), transparent 48%),
+    #fff;
+  box-shadow: var(--shadow-sm);
+}
+
+.ai-review-block::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: linear-gradient(180deg, var(--accent), var(--accent-light));
+}
+
+.ai-review-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.ai-review-block p {
+  margin: 14px 0 0;
+  color: var(--ink);
+  font-size: 16px;
+  line-height: 1.9;
+  white-space: pre-wrap;
+}
+
+.ai-review-block small {
+  display: block;
+  margin-top: 14px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .comment-section {
   margin-top: 48px;
 }
@@ -3328,6 +3373,7 @@ th {
 .public-shell .message-form,
 .public-shell .comment-form,
 .public-shell .markdown,
+.public-shell .ai-review-block,
 .public-shell .message-item,
 .public-shell .comment-item,
 .public-shell .empty-state {
@@ -3759,6 +3805,7 @@ th {
 .public-shell .message-form,
 .public-shell .comment-form,
 .public-shell .markdown,
+.public-shell .ai-review-block,
 .public-shell .message-item,
 .public-shell .comment-item,
 .public-shell .empty-state {
@@ -4241,6 +4288,7 @@ th {
 .public-shell[data-theme="lumen"] .message-form,
 .public-shell[data-theme="lumen"] .comment-form,
 .public-shell[data-theme="lumen"] .markdown,
+.public-shell[data-theme="lumen"] .ai-review-block,
 .public-shell[data-theme="lumen"] .message-item,
 .public-shell[data-theme="lumen"] .comment-item,
 .public-shell[data-theme="lumen"] .empty-state,
@@ -4252,6 +4300,7 @@ th {
 .public-shell[data-theme="paper"] .message-form,
 .public-shell[data-theme="paper"] .comment-form,
 .public-shell[data-theme="paper"] .markdown,
+.public-shell[data-theme="paper"] .ai-review-block,
 .public-shell[data-theme="paper"] .message-item,
 .public-shell[data-theme="paper"] .comment-item,
 .public-shell[data-theme="paper"] .empty-state {
