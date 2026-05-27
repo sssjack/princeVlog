@@ -6,6 +6,7 @@ import {
   BarChart3,
   Calendar,
   Camera,
+  Check,
   Edit3,
   Eye,
   FileText,
@@ -17,6 +18,7 @@ import {
   Menu,
   MessageCircle,
   MessageSquare,
+  Palette,
   Plus,
   Reply,
   Save,
@@ -34,6 +36,21 @@ import './styles.css';
 
 const BASE_PATH = (import.meta.env.BASE_URL || '/princevlog/').replace(/\/$/, '');
 const API_BASE = `${BASE_PATH}/api`;
+const PUBLIC_THEMES = [
+  { id: 'nocturne', label: '夜航', colors: ['#d8b4fe', '#22d3ee', '#0f172a'] },
+  { id: 'ink', label: '墨境', colors: ['#f8fafc', '#64748b', '#020617'] },
+  { id: 'ember', label: '余烬', colors: ['#f59e0b', '#fb7185', '#180b08'] },
+  { id: 'ether', label: '星雾', colors: ['#a7f3d0', '#818cf8', '#050816'] }
+];
+
+function readStoredPublicTheme() {
+  try {
+    const stored = window.localStorage.getItem('princevlog-public-theme');
+    return PUBLIC_THEMES.some((item) => item.id === stored) ? stored : PUBLIC_THEMES[0].id;
+  } catch {
+    return PUBLIC_THEMES[0].id;
+  }
+}
 
 function routeFromLocation() {
   const pathname = window.location.pathname.startsWith(BASE_PATH)
@@ -150,31 +167,90 @@ function Shell({ route, navigate }) {
 }
 
 function PublicLayout({ children, navigate, path }) {
+  const [theme, setTheme] = useState(readStoredPublicTheme);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('princevlog-public-theme', theme);
+    } catch {
+      // Storage can be unavailable in private or embedded browsing contexts.
+    }
+  }, [theme]);
+
   return (
-    <>
+    <div className="public-shell" data-theme={theme}>
       <header className="site-header">
         <button className="brand" onClick={() => navigate('/')}>
           <span className="brand-mark">PV</span>
           <span>PrinceVlog</span>
         </button>
-        <nav>
-          <button className={path === '/' ? 'active' : ''} onClick={() => navigate('/')}>
-            <Home size={17} />首页
-          </button>
-          <button className={path === '/articles' ? 'active' : ''} onClick={() => navigate('/articles')}>
-            <FileText size={17} />文章
-          </button>
-          <button className={path === '/gallery' ? 'active' : ''} onClick={() => navigate('/gallery')}>
-            <Camera size={17} />相册
-          </button>
-          <button onClick={() => navigate('/admin')}>
-            <Shield size={17} />后台
-          </button>
-        </nav>
+        <div className="header-actions">
+          <nav aria-label="前台导航">
+            <button className={path === '/' ? 'active' : ''} aria-label="首页" onClick={() => navigate('/')}>
+              <Home size={17} /><span>首页</span>
+            </button>
+            <button className={path === '/articles' ? 'active' : ''} aria-label="文章" onClick={() => navigate('/articles')}>
+              <FileText size={17} /><span>文章</span>
+            </button>
+            <button className={path === '/gallery' ? 'active' : ''} aria-label="相册" onClick={() => navigate('/gallery')}>
+              <Camera size={17} /><span>相册</span>
+            </button>
+            <button aria-label="后台" onClick={() => navigate('/admin')}>
+              <Shield size={17} /><span>后台</span>
+            </button>
+          </nav>
+          <StyleSwitcher theme={theme} onChange={setTheme} />
+        </div>
       </header>
       <main>{children}</main>
       <Footer />
-    </>
+    </div>
+  );
+}
+
+function StyleSwitcher({ theme, onChange }) {
+  const [open, setOpen] = useState(false);
+  const activeTheme = PUBLIC_THEMES.find((item) => item.id === theme) || PUBLIC_THEMES[0];
+
+  function chooseTheme(id) {
+    onChange(id);
+    setOpen(false);
+  }
+
+  return (
+    <div className="style-switcher">
+      <button
+        type="button"
+        className="style-trigger"
+        aria-label="选择首页风格"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <Palette size={17} />
+        <span>风格</span>
+        <i className="style-current" style={{ background: activeTheme.colors[0] }} />
+      </button>
+      {open ? (
+        <div className="style-menu" role="menu" aria-label="首页风格">
+          {PUBLIC_THEMES.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={theme === item.id ? 'active' : ''}
+              role="menuitemradio"
+              aria-checked={theme === item.id}
+              onClick={() => chooseTheme(item.id)}
+            >
+              <span className="theme-swatch" aria-hidden="true">
+                {item.colors.map((color) => <i key={color} style={{ background: color }} />)}
+              </span>
+              <span>{item.label}</span>
+              {theme === item.id ? <Check size={15} /> : null}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -186,6 +262,13 @@ function HomePage({ navigate }) {
   const categories = data?.categories || [];
   const albums = data?.albums || [];
   const mottoes = settings.mottoes || [];
+  const heroThought = mottoes[0] || '把时间交给热爱，答案会在静处慢慢长出来。';
+  const heroSignals = [
+    { label: '推荐', value: recommended.length },
+    { label: '最新', value: latest.length },
+    { label: '分类', value: categories.length },
+    { label: '相簿', value: albums.length }
+  ];
 
   if (loading) return <Loading label="正在加载 PrinceVlog" />;
   if (error) return <ErrorView message={error} />;
@@ -202,6 +285,19 @@ function HomePage({ navigate }) {
             <IconButton icon={FileText} onClick={() => navigate('/articles')}>阅读文章</IconButton>
             <IconButton icon={Camera} className="ghost" onClick={() => navigate('/gallery')}>浏览相册</IconButton>
           </div>
+          <div className="hero-signal-row" aria-label="首页内容概览">
+            {heroSignals.map((item) => (
+              <span key={item.label}>
+                <strong>{item.value}</strong>
+                <small>{item.label}</small>
+              </span>
+            ))}
+          </div>
+          <aside className="hero-thought-panel" aria-label="首页哲思">
+            <span>Field Note</span>
+            <p>{heroThought}</p>
+            <small>{settings.ownerName || 'Prince'} / still moving</small>
+          </aside>
         </div>
       </section>
 
