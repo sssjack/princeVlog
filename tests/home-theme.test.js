@@ -53,11 +53,12 @@ describe('public home visual theme', () => {
     expect(styles).toContain('backdrop-filter: blur');
   });
 
-  it('shows mottoes as centered fading statements instead of a horizontal ticker', () => {
-    expect(mainSource).toContain('motto-stage');
+  it('shows mottoes as fading statements inside the hero thought panel', () => {
+    expect(mainSource).toContain('hero-motto-stack');
     expect(mainSource).toContain('motto-fade-stack');
+    expect(mainSource).not.toContain('motto-stage');
     expect(mainSource).not.toContain('motto-track');
-    expect(styles).toContain('.motto-stage');
+    expect(styles).toContain('.hero-motto-stack');
     expect(styles).toContain('@keyframes motto-fade');
     expect(styles).toContain('animation-delay: calc(var(--motto-index)');
   });

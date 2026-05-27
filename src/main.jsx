@@ -311,25 +311,19 @@ function HomePage({ navigate }) {
               ))}
             </div>
           </div>
-          <aside className="hero-thought-panel" aria-label="首页哲思">
+          <aside
+            className="hero-thought-panel"
+            aria-label="首页哲思"
+            style={{ '--motto-duration': `${Math.max(mottoLoop.length, 1) * 5.6}s` }}
+          >
             <span>Field Note</span>
-            <p>{heroThought}</p>
+            <div className={`motto-fade-stack hero-motto-stack ${mottoLoop.length === 1 ? 'single' : ''}`}>
+              {mottoLoop.map((item, index) => (
+                <p key={`${item}-${index}`} style={{ '--motto-index': index }}>{item}</p>
+              ))}
+            </div>
             <small>{settings.ownerName || 'Prince'} / still moving</small>
           </aside>
-        </div>
-      </section>
-
-      <section
-        className="motto-stage"
-        aria-label="人生格言轮播"
-        style={{ '--motto-duration': `${Math.max(mottoLoop.length, 1) * 5.6}s` }}
-      >
-        <div className="motto-stage-inner">
-          <div className={`motto-fade-stack ${mottoLoop.length === 1 ? 'single' : ''}`}>
-            {mottoLoop.map((item, index) => (
-              <p key={`${item}-${index}`} style={{ '--motto-index': index }}>{item}</p>
-            ))}
-          </div>
         </div>
       </section>
 

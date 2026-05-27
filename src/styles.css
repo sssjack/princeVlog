@@ -277,47 +277,7 @@ img {
   box-shadow: none;
 }
 
-/* ─── Motto Stage ─── */
-
-.motto-stage {
-  position: relative;
-  display: grid;
-  place-items: center;
-  min-height: clamp(160px, 22vw, 238px);
-  padding: 42px 24px;
-  background:
-    radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.68), transparent 58%),
-    #fff;
-  text-align: center;
-  isolation: isolate;
-}
-
-.motto-stage::before {
-  content: "";
-  position: absolute;
-  inset: 18px 8%;
-  z-index: -1;
-  border-radius: 999px;
-  background: linear-gradient(90deg, transparent, var(--accent-soft), transparent);
-  filter: blur(24px);
-  opacity: 0.8;
-}
-
-.motto-stage-inner {
-  position: relative;
-  width: min(880px, 100%);
-  display: grid;
-  place-items: center;
-}
-
-.motto-stage-inner::before {
-  content: "";
-  width: min(380px, 64%);
-  height: 1px;
-  margin-bottom: 26px;
-  background: linear-gradient(90deg, transparent, var(--accent), var(--accent-light), transparent);
-  opacity: 0.62;
-}
+/* ─── Motto Fade ─── */
 
 .motto-fade-stack {
   position: relative;
@@ -355,20 +315,20 @@ img {
 
 @keyframes motto-fade {
   0%,
-  6% {
+  2% {
     opacity: 0;
     filter: blur(7px);
     transform: translateY(16px) scale(0.98);
   }
 
-  12%,
-  30% {
+  7%,
+  28% {
     opacity: 1;
     filter: blur(0);
     transform: translateY(0) scale(1);
   }
 
-  38%,
+  33%,
   100% {
     opacity: 0;
     filter: blur(7px);
@@ -3230,12 +3190,6 @@ th {
   font-weight: 650;
 }
 
-.public-shell .motto-stage {
-  border-block: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(14px);
-}
-
 .public-shell .motto-fade-stack p {
   color: var(--ink);
 }
@@ -3905,11 +3859,6 @@ th {
   font-size: 13px;
 }
 
-.public-shell .motto-stage {
-  border-color: var(--line);
-  background: rgba(2, 6, 23, 0.68);
-}
-
 .public-shell .content-band,
 .public-shell .split-band,
 .public-shell .message-board,
@@ -4238,6 +4187,21 @@ th {
   line-height: 1.85;
 }
 
+.hero-motto-stack {
+  width: min(680px, 100%);
+  min-height: clamp(58px, 6vw, 82px);
+  margin: 18px auto 0;
+}
+
+.hero-motto-stack p {
+  max-width: 660px;
+  margin: 0 auto;
+  color: var(--ink);
+  font-family: var(--display-font);
+  font-size: clamp(1.12rem, 1.55vw, 1.45rem);
+  line-height: 1.85;
+}
+
 .hero-thought-panel small {
   margin-top: 18px;
 }
@@ -4296,8 +4260,6 @@ th {
     var(--panel);
 }
 
-.public-shell[data-theme="lumen"] .motto-stage,
-.public-shell[data-theme="paper"] .motto-stage,
 .public-shell[data-theme="lumen"] .site-footer,
 .public-shell[data-theme="paper"] .site-footer {
   background: rgba(255, 255, 255, 0.7);
@@ -4382,15 +4344,6 @@ th {
 
   .hero-primary-panel .hero-signal-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .motto-stage {
-    min-height: 180px;
-    padding: 34px 18px;
-  }
-
-  .motto-stage-inner::before {
-    margin-bottom: 20px;
   }
 
   .motto-fade-stack {
