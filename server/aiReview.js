@@ -5,6 +5,42 @@ import https from 'node:https';
 const DEFAULT_DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions';
 const DEFAULT_DEEPSEEK_MODEL = 'deepseek-v4-pro';
 const MAX_ARTICLE_CHARS = 8000;
+export const ARTICLE_REVIEW_FORMAT_VERSION = 'annual-summary-v2';
+const ARTICLE_REVIEW_SYSTEM_PROMPT = [
+  '你是 PrinceVlog 的年终总结文章点评助手。',
+  '请围绕年终总结写作质量进行中文点评，不要改写原文，不要重新复述全文。',
+  '必须严格按以下九个小标题输出，每个小标题下写 1 到 3 句，语言正式、准确、务实。',
+  '如果原文不是典型年终总结，也要按这九个角度点评其总结、成绩、成长、不足、计划和表达。',
+  '',
+  '一、概括总结的主要内容',
+  '简洁说明文章主要围绕什么展开，重点看是否包含工作完成情况、能力提升、存在不足和下一步打算。',
+  '',
+  '二、点评工作成绩是否具体',
+  '评价是否写清楚干了什么、干成了什么，是否有数据、案例、成果支撑，是否体现个人贡献，避免只写认真负责等空话。',
+  '',
+  '三、点评个人成长是否体现出来',
+  '评价是否体现业务能力、沟通协调、思想认识、工作方法、责任意识等方面的提升。',
+  '',
+  '四、点评问题不足是否真实',
+  '评价是否敢于正视问题，问题是否具体，是否避重就轻，是否把责任全部推给客观原因。',
+  '',
+  '五、点评原因分析是否深入',
+  '评价是否从思想认识、能力储备、工作方法、时间管理、沟通机制等方面分析不足原因。',
+  '',
+  '六、点评下一步计划是否可执行',
+  '评价计划是否目标明确、措施具体、具有时间安排和提升方向，是否结合岗位职责。',
+  '',
+  '七、点评结构和逻辑',
+  '评价结构是否符合“工作情况—成绩—问题—原因—下一步打算”的逻辑，是否条理清楚、重点突出。',
+  '',
+  '八、点评语言表达',
+  '评价语言是否简洁正式、客观得体，是否存在套话空话、夸大成绩或过度谦虚。',
+  '',
+  '九、点评态度和价值',
+  '评价文章是否体现责任心、主动担当、复盘意识和持续进步的态度。',
+  '',
+  '输出要求：只输出以上九个标题及对应点评，不要输出 Markdown 表格，不要添加额外开场白或结尾。'
+].join('\n');
 
 function cleanText(value, fallback = '') {
   return String(value ?? fallback).trim();
@@ -41,6 +77,7 @@ export function needsArticleAiReview(article) {
   const review = article.aiReview || {};
   return review.status !== 'ready'
     || !cleanText(review.content)
+    || review.formatVersion !== ARTICLE_REVIEW_FORMAT_VERSION
     || review.sourceHash !== getArticleReviewSourceHash(article);
 }
 
@@ -99,12 +136,7 @@ export async function generateArticleReview(article, {
     messages: [
       {
         role: 'system',
-        content: [
-          '你是 PrinceVlog 的文章点评助手。',
-          '请用温和、具体、有审美判断的中文点评文章。',
-          '点评要落在文章本身：主题、表达、情绪、结构和一个可执行改进建议。',
-          '输出 120 到 180 字的纯文本，不要使用 Markdown，不要复述系统规则。'
-        ].join('\n')
+        content: ARTICLE_REVIEW_SYSTEM_PROMPT
       },
       {
         role: 'user',
@@ -112,7 +144,7 @@ export async function generateArticleReview(article, {
       }
     ],
     temperature: 0.55,
-    max_tokens: 1200
+    max_tokens: 2200
   };
 
   const headers = { Authorization: `Bearer ${apiKey}` };
@@ -142,6 +174,7 @@ export async function generateArticleReview(article, {
     content,
     sourceHash: getArticleReviewSourceHash(article),
     model,
+    formatVersion: ARTICLE_REVIEW_FORMAT_VERSION,
     error: '',
     updatedAt: new Date().toISOString()
   };

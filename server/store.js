@@ -52,6 +52,7 @@ function normalizeAiReview(value, timestamp = now()) {
     content: cleanText(review.content),
     sourceHash: cleanText(review.sourceHash),
     model: cleanText(review.model),
+    formatVersion: cleanText(review.formatVersion),
     error: cleanText(review.error),
     updatedAt: cleanText(review.updatedAt, timestamp)
   };
@@ -392,6 +393,7 @@ export function createStore(dbPath, { seedDemo = false } = {}) {
           content: input.content === undefined ? current.content : cleanText(input.content).slice(0, 2000),
           sourceHash: input.sourceHash === undefined ? current.sourceHash : cleanText(input.sourceHash),
           model: input.model === undefined ? current.model : cleanText(input.model),
+          formatVersion: input.formatVersion === undefined ? current.formatVersion : cleanText(input.formatVersion),
           error: input.error === undefined ? current.error : cleanText(input.error).slice(0, 500),
           updatedAt: cleanText(input.updatedAt, timestamp)
         };

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import http from 'node:http';
 import {
+  ARTICLE_REVIEW_FORMAT_VERSION,
   generateArticleReview,
   getArticleReviewSourceHash,
   isAiReviewConfigured,
@@ -40,13 +41,17 @@ describe('article AI review', () => {
     expect(request.body).not.toContain('test-key');
     const payload = JSON.parse(request.body);
     expect(payload.model).toBe('deepseek-v4-pro');
-    expect(payload.max_tokens).toBe(1200);
+    expect(payload.max_tokens).toBe(2200);
+    expect(payload.messages[0].content).toContain('一、概括总结的主要内容');
+    expect(payload.messages[0].content).toContain('九、点评态度和价值');
+    expect(payload.messages[0].content).toContain('必须严格按以下九个小标题输出');
     expect(payload.messages[1].content).toContain(article.title);
     expect(payload.messages[1].content).toContain(article.content);
     expect(result).toMatchObject({
       status: 'ready',
       content: '这篇文章有很好的现场感，适合继续补充一个更具体的结尾。',
-      model: 'deepseek-v4-pro'
+      model: 'deepseek-v4-pro',
+      formatVersion: ARTICLE_REVIEW_FORMAT_VERSION
     });
     expect(result.sourceHash).toBe(getArticleReviewSourceHash(article));
   });
@@ -62,12 +67,27 @@ describe('article AI review', () => {
       ...article,
       status: 'published',
       aiReview: { status: 'ready', content: 'ok', sourceHash }
+    })).toBe(true);
+    expect(needsArticleAiReview({
+      ...article,
+      status: 'published',
+      aiReview: {
+        status: 'ready',
+        content: 'ok',
+        sourceHash,
+        formatVersion: ARTICLE_REVIEW_FORMAT_VERSION
+      }
     })).toBe(false);
     expect(needsArticleAiReview({
       ...article,
       status: 'published',
       content: `${article.content}\n\n补充一句。`,
-      aiReview: { status: 'ready', content: 'ok', sourceHash }
+      aiReview: {
+        status: 'ready',
+        content: 'ok',
+        sourceHash,
+        formatVersion: ARTICLE_REVIEW_FORMAT_VERSION
+      }
     })).toBe(true);
   });
 
