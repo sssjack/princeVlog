@@ -88,6 +88,8 @@ const COUNTRY_NAMES = {
   RU: '俄罗斯'
 };
 
+const UNKNOWN_LOCATION = '未知';
+
 function isPrivateIp(ip) {
   return (
     !ip ||
@@ -106,7 +108,7 @@ export function normalizeIp(value) {
 
 function countryNameForCode(code) {
   const value = String(code || '').trim().toUpperCase();
-  if (!value) return '未知';
+  if (!value) return UNKNOWN_LOCATION;
   if (COUNTRY_NAMES[value]) return COUNTRY_NAMES[value];
   try {
     return new Intl.DisplayNames(['zh-CN'], { type: 'region' }).of(value) || value;
@@ -122,19 +124,19 @@ export function locationForIp(ip) {
   }
 
   const geo = geoip.lookup(normalized);
-  if (!geo) return { country: '未知', province: '未知' };
+  if (!geo) return { country: UNKNOWN_LOCATION, province: UNKNOWN_LOCATION };
 
   const country = countryNameForCode(geo.country);
   if (geo.country === 'CN') {
     return {
       country,
-      province: CN_REGIONS[geo.region] || geo.region || '中国'
+      province: CN_REGIONS[geo.region] || geo.region || UNKNOWN_LOCATION
     };
   }
 
   return {
     country,
-    province: geo.region || country || '未知'
+    province: geo.region || UNKNOWN_LOCATION
   };
 }
 

@@ -23,7 +23,8 @@ function toBool(value) {
 
 function displayProvince(visit) {
   const province = cleanText(visit.province);
-  if (!province || province === '??' || /^[A-Z]{2}$/.test(province)) {
+  const country = cleanText(visit.country);
+  if (!province || province === '??' || province === '未知' || province === country || /^[A-Z]{2}$/.test(province)) {
     return locationForIp(visit.ip).province;
   }
   return province;

@@ -123,4 +123,21 @@ describe('content store', () => {
       path: '/princevlog/path-5'
     });
   });
+
+  it('does not display the country name as a province fallback', async () => {
+    await store.recordVisit({
+      ip: '203.0.113.10',
+      country: '中国',
+      province: '中国',
+      path: '/princevlog/articles/fallback'
+    });
+
+    const analytics = await store.getAnalytics();
+
+    expect(analytics.recentVisits[0]).toMatchObject({
+      country: '中国',
+      province: '未知',
+      path: '/princevlog/articles/fallback'
+    });
+  });
 });
