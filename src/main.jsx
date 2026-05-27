@@ -14,6 +14,7 @@ import {
   ImagePlus,
   Layers,
   LogOut,
+  Menu,
   MessageCircle,
   MessageSquare,
   Plus,
@@ -25,7 +26,9 @@ import {
   Sparkles,
   Star,
   Trash2,
-  Upload
+  Upload,
+  UserRound,
+  X
 } from 'lucide-react';
 import './styles.css';
 
@@ -484,6 +487,7 @@ function AdminApp({ navigate }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [tab, setTab] = useState('analytics');
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     api('/admin/me')
@@ -497,42 +501,84 @@ function AdminApp({ navigate }) {
     setUser(null);
   }
 
+  function selectTab(key) {
+    setTab(key);
+    setMenuOpen(false);
+  }
+
   if (loading) return <Loading label="正在进入后台" />;
   if (!user) return <LoginView onLogin={setUser} error={error} setError={setError} navigate={navigate} />;
 
   const tabs = [
-    ['analytics', BarChart3, '数据'],
-    ['articles', FileText, '文章'],
-    ['categories', Layers, '分类'],
-    ['albums', Camera, '相册'],
-    ['messages', MessageSquare, '留言'],
-    ['settings', Settings, '设置']
+    { key: 'analytics', Icon: BarChart3, label: '数据概览', hint: '访问、内容与地区' },
+    { key: 'articles', Icon: FileText, label: '文章管理', hint: 'Markdown 与发布状态' },
+    { key: 'categories', Icon: Layers, label: '分类管理', hint: '主题入口与归档' },
+    { key: 'albums', Icon: Camera, label: '相册管理', hint: '照片、文件夹与时间线' },
+    { key: 'messages', Icon: MessageSquare, label: '留言评论', hint: '回复访客互动' },
+    { key: 'settings', Icon: Settings, label: '站点设置', hint: '首页文案与格言' }
   ];
+  const activeTab = tabs.find((item) => item.key === tab) || tabs[0];
 
   return (
     <div className="admin-shell">
-      <aside>
-        <button className="brand admin-brand" onClick={() => navigate('/')}>
-          <span className="brand-mark">PV</span>
-          <span>PrinceVlog</span>
-        </button>
-        <div className="admin-nav">
-          {tabs.map(([key, Icon, label]) => (
-            <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>
-              <Icon size={18} />{label}
+      <aside className={`admin-aside ${menuOpen ? 'is-open' : ''}`}>
+        <div className="admin-aside-head">
+          <button className="brand admin-brand" onClick={() => navigate('/')}>
+            <span className="brand-mark">PV</span>
+            <span>PrinceVlog</span>
+          </button>
+          <button className="admin-close" aria-label="关闭后台导航" onClick={() => setMenuOpen(false)}>
+            <X size={18} />
+          </button>
+        </div>
+
+        <nav className={`admin-nav ${menuOpen ? 'is-open' : ''}`} aria-label="后台导航">
+          {tabs.map(({ key, Icon, label, hint }) => (
+            <button key={key} className={tab === key ? 'active' : ''} onClick={() => selectTab(key)}>
+              <Icon size={18} />
+              <span>
+                <strong>{label}</strong>
+                <small>{hint}</small>
+              </span>
             </button>
           ))}
+        </nav>
+
+        <div className="admin-user-panel">
+          <div className="admin-avatar"><UserRound size={19} /></div>
+          <div>
+            <strong>{user.username}</strong>
+            <span>Administrator</span>
+          </div>
         </div>
-        <IconButton icon={LogOut} className="ghost" onClick={logout}>退出</IconButton>
+        <IconButton icon={LogOut} className="ghost admin-logout" onClick={logout}>退出登录</IconButton>
       </aside>
-      <section className="admin-main">
-        {tab === 'analytics' && <AdminAnalytics />}
-        {tab === 'articles' && <AdminArticles />}
-        {tab === 'categories' && <AdminCategories />}
-        {tab === 'albums' && <AdminAlbums />}
-        {tab === 'messages' && <AdminEngagement />}
-        {tab === 'settings' && <AdminSettings />}
-      </section>
+
+      {menuOpen ? <button className="admin-scrim" aria-label="关闭后台导航" onClick={() => setMenuOpen(false)} /> : null}
+
+      <div className="admin-workspace">
+        <header className="admin-mobile-bar">
+          <button className="admin-menu-toggle" aria-label="切换后台导航" onClick={() => setMenuOpen((value) => !value)}>
+            {menuOpen ? <X size={19} /> : <Menu size={19} />}
+          </button>
+          <div>
+            <span>{activeTab.label}</span>
+            <strong>PrinceVlog Admin</strong>
+          </div>
+          <button className="admin-home-button" aria-label="返回前台" onClick={() => navigate('/')}>
+            <Home size={18} />
+          </button>
+        </header>
+
+        <section className="admin-main">
+          {tab === 'analytics' && <AdminAnalytics />}
+          {tab === 'articles' && <AdminArticles />}
+          {tab === 'categories' && <AdminCategories />}
+          {tab === 'albums' && <AdminAlbums />}
+          {tab === 'messages' && <AdminEngagement />}
+          {tab === 'settings' && <AdminSettings />}
+        </section>
+      </div>
     </div>
   );
 }
@@ -558,7 +604,8 @@ function LoginView({ onLogin, error, setError, navigate }) {
         <span>PrinceVlog</span>
       </button>
       <form className="login-panel" onSubmit={submit}>
-        <Shield size={34} />
+        <div className="login-icon"><Shield size={24} /></div>
+        <span>Admin Portal</span>
         <h1>后台登录</h1>
         <input value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value })} placeholder="账号" />
         <input value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} placeholder="密码" type="password" />
