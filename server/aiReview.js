@@ -5,7 +5,8 @@ import https from 'node:https';
 const DEFAULT_DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions';
 const DEFAULT_DEEPSEEK_MODEL = 'deepseek-v4-pro';
 const MAX_ARTICLE_CHARS = 8000;
-export const ARTICLE_REVIEW_FORMAT_VERSION = 'comprehensive-500-v3';
+const ARTICLE_REVIEW_MAX_TOKENS = 6000;
+export const ARTICLE_REVIEW_FORMAT_VERSION = 'comprehensive-500-v4';
 const ARTICLE_REVIEW_SYSTEM_PROMPT = [
   '你是 PrinceVlog 的文章点评助手。',
   '请根据用户提供的文章生成一篇中文全面点评，要求不少于500字。',
@@ -128,7 +129,7 @@ export async function generateArticleReview(article, {
       }
     ],
     temperature: 0.55,
-    max_tokens: 3000
+    max_tokens: ARTICLE_REVIEW_MAX_TOKENS
   };
 
   const headers = { Authorization: `Bearer ${apiKey}` };
@@ -148,7 +149,11 @@ export async function generateArticleReview(article, {
   }
 
   const data = await response.json();
-  const content = cleanText(data?.choices?.[0]?.message?.content);
+  const choice = data?.choices?.[0];
+  if (choice?.finish_reason === 'length') {
+    throw new Error('DeepSeek response was truncated by max_tokens');
+  }
+  const content = cleanText(choice?.message?.content);
   if (!content) {
     throw new Error('DeepSeek returned an empty review');
   }

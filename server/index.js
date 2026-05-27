@@ -12,6 +12,8 @@ import { createArticleReviewQueue } from './aiReview.js';
 import { loadEnvFile } from './env.js';
 import { locationForIp, normalizeIp } from './geo.js';
 import { createStore } from './store.js';
+import { createAnnualTimeline } from './timeline.js';
+import { createAnnualTimelineInsightQueue, needsAnnualTimelineInsight } from './timelineInsight.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
@@ -137,6 +139,7 @@ export async function createApp() {
   const store = createStore(process.env.DB_PATH || path.join(dataDir, 'data.json'), { seedDemo: true });
   await store.init();
   const articleReviewer = createArticleReviewQueue({ store });
+  const annualTimelineInsightQueue = createAnnualTimelineInsightQueue({ store });
   await mkdir(uploadDir, { recursive: true });
   const auth = await buildAuth();
   const upload = createUpload(uploadDir);
@@ -170,6 +173,15 @@ export async function createApp() {
       albums: albums.slice(0, 4),
       messages: messages.slice(0, 8)
     });
+  }));
+
+  router.get('/api/public/timeline', asyncHandler(async (_req, res) => {
+    const articles = await store.listArticles({});
+    const insight = await store.getAnnualTimelineInsight();
+    if (needsAnnualTimelineInsight(articles, insight)) {
+      annualTimelineInsightQueue.enqueueInsight();
+    }
+    res.json({ timeline: createAnnualTimeline(articles), insight });
   }));
 
   router.get('/api/public/articles', asyncHandler(async (req, res) => {
@@ -386,6 +398,7 @@ export async function createApp() {
   articleReviewer.enqueueMissingReviews().catch((error) => {
     console.error('article AI review backfill failed', error);
   });
+  annualTimelineInsightQueue.enqueueInsight();
 
   return app;
 }

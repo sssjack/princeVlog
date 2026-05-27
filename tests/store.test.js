@@ -55,7 +55,7 @@ describe('content store', () => {
       content: 'AI 点评内容',
       sourceHash: 'old-hash',
       model: 'deepseek-v4-pro',
-      formatVersion: 'comprehensive-500-v3'
+      formatVersion: 'comprehensive-500-v4'
     });
     const reviewed = await store.getArticle(article.id);
     expect(reviewed.aiReview).toMatchObject({
@@ -63,7 +63,7 @@ describe('content store', () => {
       content: 'AI 点评内容',
       sourceHash: 'old-hash',
       model: 'deepseek-v4-pro',
-      formatVersion: 'comprehensive-500-v3'
+      formatVersion: 'comprehensive-500-v4'
     });
 
     const updated = await store.updateArticle(article.id, {
@@ -78,6 +78,29 @@ describe('content store', () => {
       content: 'AI 点评内容',
       sourceHash: ''
     });
+  });
+
+  it('preserves complete long AI review content', async () => {
+    const article = await store.createArticle({
+      title: 'Long review article',
+      slug: 'long-review-article',
+      content: 'Body',
+      status: 'published'
+    });
+    const content = `${'complete review paragraph. '.repeat(120)}THE_END`;
+
+    await store.setArticleAiReview(article.id, {
+      status: 'ready',
+      content,
+      sourceHash: 'hash',
+      model: 'deepseek-v4-pro',
+      formatVersion: 'comprehensive-500-v4'
+    });
+
+    const reviewed = await store.getArticle(article.id);
+
+    expect(reviewed.aiReview.content).toBe(content);
+    expect(reviewed.aiReview.content.endsWith('THE_END')).toBe(true);
   });
 
   it('keeps album photos queryable by folder and date', async () => {

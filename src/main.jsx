@@ -7,6 +7,7 @@ import {
   Calendar,
   Camera,
   Check,
+  Clock3,
   Edit3,
   Eye,
   FileText,
@@ -173,6 +174,7 @@ function Shell({ route, navigate }) {
     <PublicLayout navigate={navigate} path={path}>
       {path === '/' && <HomePage navigate={navigate} />}
       {path === '/articles' && <ArticleListPage navigate={navigate} />}
+      {path === '/timeline' && <TimelinePage navigate={navigate} />}
       {path.startsWith('/article/') && <ArticleDetailPage identifier={decodeURIComponent(path.replace('/article/', ''))} />}
       {path === '/gallery' && <GalleryPage />}
     </PublicLayout>
@@ -204,6 +206,9 @@ function PublicLayout({ children, navigate, path }) {
             </button>
             <button className={path === '/articles' ? 'active' : ''} aria-label="文章" onClick={() => navigate('/articles')}>
               <FileText size={17} /><span>文章</span>
+            </button>
+            <button className={path === '/timeline' ? 'active' : ''} aria-label="时间轴" onClick={() => navigate('/timeline')}>
+              <Clock3 size={17} /><span>时间轴</span>
             </button>
             <button className={path === '/gallery' ? 'active' : ''} aria-label="相册" onClick={() => navigate('/gallery')}>
               <Camera size={17} /><span>相册</span>
@@ -376,6 +381,10 @@ function HomePage({ navigate }) {
         </div>
       </FadeIn>
 
+      <FadeIn tag="section" className="content-band timeline-band">
+        <YearTimelineExperience navigate={navigate} compact />
+      </FadeIn>
+
       <FadeIn tag="section" className="content-band">
         <div className="section-head">
           <span>Gallery</span>
@@ -396,6 +405,157 @@ function HomePage({ navigate }) {
         <MessageBoard initialMessages={data?.messages || []} />
       </FadeIn>
     </div>
+  );
+}
+
+function TimelinePage({ navigate }) {
+  return (
+    <section className="page-shell timeline-page">
+      <YearTimelineExperience navigate={navigate} />
+    </section>
+  );
+}
+
+function YearTimelineExperience({ navigate, compact = false }) {
+  const [selectedId, setSelectedId] = useState('');
+  const { loading, error, data } = usePageData(() => api('/public/timeline'), []);
+  const timeline = data?.timeline || { years: [], totalEvents: 0 };
+  const insight = data?.insight || {};
+  const visibleYears = useMemo(() => (
+    compact
+      ? timeline.years.slice(0, 3).map((group) => ({ ...group, events: group.events.slice(0, 6) }))
+      : timeline.years
+  ), [timeline.years, compact]);
+  const flatEvents = useMemo(() => visibleYears.flatMap((group) => group.events), [visibleYears]);
+  const activeEvent = flatEvents.find((event) => event.id === selectedId) || flatEvents[0] || null;
+
+  useEffect(() => {
+    if (!flatEvents.length) return;
+    if (!selectedId || !flatEvents.some((event) => event.id === selectedId)) {
+      setSelectedId(flatEvents[0].id);
+    }
+  }, [flatEvents, selectedId]);
+
+  if (loading) return <Loading label="正在读取年终时间轴" />;
+  if (error) return <ErrorView message={error} />;
+
+  return (
+    <div className={`timeline-experience ${compact ? 'compact' : 'full'}`}>
+      <div className="section-head timeline-head">
+        <span><Sparkles size={16} />Chronicle</span>
+        <h2>时间轴</h2>
+        <p>把每一篇年终总结拆成可回望的时间节点，让年月、选择和转折重新排成一条发光的路径。</p>
+      </div>
+
+      {flatEvents.length === 0 ? (
+        <EmptyState text="年终总结文章里暂时没有可识别的时间节点。" />
+      ) : (
+        <div className="timeline-stage">
+          <aside className="timeline-event-detail" aria-live="polite">
+            {activeEvent ? (
+              <>
+                <div className="timeline-detail-kicker">
+                  <Calendar size={16} />
+                  <span>{activeEvent.dateLabel} / {activeEvent.year}</span>
+                </div>
+                <h3>{activeEvent.title}</h3>
+                <p>{activeEvent.detail}</p>
+                <div className="timeline-detail-actions">
+                  <button type="button" onClick={() => navigate(`/article/${activeEvent.articleSlug}`)}>
+                    <FileText size={17} />
+                    <span>阅读全文</span>
+                  </button>
+                  {compact ? (
+                    <button type="button" onClick={() => navigate('/timeline')}>
+                      <Clock3 size={17} />
+                      <span>完整时间轴</span>
+                    </button>
+                  ) : null}
+                </div>
+              </>
+            ) : null}
+          </aside>
+
+          <div className="timeline-constellation" aria-label="年终总结时间轴">
+            {visibleYears.map((group, groupIndex) => (
+              <section className="timeline-year-slice" key={group.year} style={{ '--year-index': groupIndex }}>
+                <div className="timeline-year-mark">
+                  <strong>{group.year}</strong>
+                  <span>{group.events.length} 个节点</span>
+                </div>
+                <div className="timeline-events">
+                  {group.events.map((event, eventIndex) => (
+                    <button
+                      type="button"
+                      className={`timeline-event ${activeEvent?.id === event.id ? 'active' : ''}`}
+                      key={event.id}
+                      aria-pressed={activeEvent?.id === event.id}
+                      style={{ '--event-index': eventIndex }}
+                      onClick={() => setSelectedId(event.id)}
+                    >
+                      <span className="timeline-event-date">{event.dateLabel}</span>
+                      <strong>{event.title}</strong>
+                      <small>{event.precision === 'day' ? 'DAY' : 'PHASE'} · {event.articleTitle}</small>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <DeepSeekAnnualInsight insight={insight} />
+    </div>
+  );
+}
+
+function DeepSeekAnnualInsight({ insight }) {
+  const ready = insight?.status === 'ready' && insight.overall;
+  const blocks = [
+    { key: 'strengths', title: '优点', items: insight?.strengths || [] },
+    { key: 'weaknesses', title: '缺点', items: insight?.weaknesses || [] },
+    { key: 'suggestions', title: '建议', items: insight?.suggestions || [] }
+  ];
+
+  return (
+    <section className={`timeline-insight-panel ${ready ? 'ready' : 'pending'}`}>
+      <div className="timeline-insight-orbit" aria-hidden="true" />
+      <div className="timeline-insight-head">
+        <span><Sparkles size={16} />DeepSeek Review</span>
+        <h3>这些年终总结里的你</h3>
+        <small>{ready ? `${insight.model || 'DeepSeek'} · ${formatDate(insight.updatedAt)}` : 'DeepSeek 正在读取这些年终总结'}</small>
+      </div>
+      {ready ? (
+        <>
+          <div className="timeline-insight-copy">
+            <article>
+              <span>对年终总结的评价</span>
+              <p>{insight.overall}</p>
+            </article>
+            <article>
+              <span>对个人的评价</span>
+              <p>{insight.personalEvaluation}</p>
+            </article>
+          </div>
+          <div className="timeline-insight-grid">
+            {blocks.map((block) => (
+              <article key={block.key}>
+                <h4>{block.title}</h4>
+                <ul>
+                  {block.items.map((item) => <li key={item}>{item}</li>)}
+                </ul>
+              </article>
+            ))}
+          </div>
+        </>
+      ) : (
+        <div className="timeline-insight-pending">
+          <div className="loader" />
+          <p>{insight?.status === 'failed' ? 'DeepSeek 总评暂时生成失败，稍后会自动重试。' : '总评生成后会在这里展示：评价、个人画像、优点、缺点和建议。'}</p>
+        </div>
+      )}
+    </section>
   );
 }
 

@@ -58,6 +58,25 @@ function normalizeAiReview(value, timestamp = now()) {
   };
 }
 
+function normalizeAnnualTimelineInsight(value, timestamp = now()) {
+  const insight = value && typeof value === 'object' ? value : {};
+  const status = ['pending', 'ready', 'failed'].includes(insight.status) ? insight.status : 'pending';
+  const list = (items) => (Array.isArray(items) ? items.map((item) => cleanText(item)).filter(Boolean).slice(0, 5) : []);
+  return {
+    status,
+    overall: cleanText(insight.overall),
+    personalEvaluation: cleanText(insight.personalEvaluation),
+    strengths: list(insight.strengths),
+    weaknesses: list(insight.weaknesses),
+    suggestions: list(insight.suggestions),
+    sourceHash: cleanText(insight.sourceHash),
+    model: cleanText(insight.model),
+    formatVersion: cleanText(insight.formatVersion),
+    error: cleanText(insight.error),
+    updatedAt: cleanText(insight.updatedAt, timestamp)
+  };
+}
+
 function pendingAiReview(previous, timestamp = now()) {
   const review = normalizeAiReview(previous, timestamp);
   return {
@@ -166,7 +185,8 @@ function defaultData(seedDemo = false) {
     photos: demo.photos || [],
     comments: [],
     messages: [],
-    visits: []
+    visits: [],
+    annualTimelineInsight: normalizeAnnualTimelineInsight(null)
   };
 }
 
@@ -182,7 +202,8 @@ function normalizeData(data) {
     photos: Array.isArray(data?.photos) ? data.photos : [],
     comments: Array.isArray(data?.comments) ? data.comments : [],
     messages: Array.isArray(data?.messages) ? data.messages : [],
-    visits: Array.isArray(data?.visits) ? data.visits : []
+    visits: Array.isArray(data?.visits) ? data.visits : [],
+    annualTimelineInsight: normalizeAnnualTimelineInsight(data?.annualTimelineInsight)
   };
 }
 
@@ -390,7 +411,7 @@ export function createStore(dbPath, { seedDemo = false } = {}) {
         article.aiReview = {
           ...current,
           status: ['pending', 'ready', 'failed'].includes(input.status) ? input.status : current.status,
-          content: input.content === undefined ? current.content : cleanText(input.content).slice(0, 2000),
+          content: input.content === undefined ? current.content : cleanText(input.content),
           sourceHash: input.sourceHash === undefined ? current.sourceHash : cleanText(input.sourceHash),
           model: input.model === undefined ? current.model : cleanText(input.model),
           formatVersion: input.formatVersion === undefined ? current.formatVersion : cleanText(input.formatVersion),
@@ -398,6 +419,33 @@ export function createStore(dbPath, { seedDemo = false } = {}) {
           updatedAt: cleanText(input.updatedAt, timestamp)
         };
         return projectArticle(article);
+      });
+    },
+
+    async getAnnualTimelineInsight() {
+      data.annualTimelineInsight = normalizeAnnualTimelineInsight(data.annualTimelineInsight);
+      return data.annualTimelineInsight;
+    },
+
+    async setAnnualTimelineInsight(input) {
+      return enqueueWrite(async () => {
+        const timestamp = now();
+        const current = normalizeAnnualTimelineInsight(data.annualTimelineInsight, timestamp);
+        data.annualTimelineInsight = {
+          ...current,
+          status: ['pending', 'ready', 'failed'].includes(input.status) ? input.status : current.status,
+          overall: input.overall === undefined ? current.overall : cleanText(input.overall),
+          personalEvaluation: input.personalEvaluation === undefined ? current.personalEvaluation : cleanText(input.personalEvaluation),
+          strengths: input.strengths === undefined ? current.strengths : normalizeAnnualTimelineInsight({ strengths: input.strengths }, timestamp).strengths,
+          weaknesses: input.weaknesses === undefined ? current.weaknesses : normalizeAnnualTimelineInsight({ weaknesses: input.weaknesses }, timestamp).weaknesses,
+          suggestions: input.suggestions === undefined ? current.suggestions : normalizeAnnualTimelineInsight({ suggestions: input.suggestions }, timestamp).suggestions,
+          sourceHash: input.sourceHash === undefined ? current.sourceHash : cleanText(input.sourceHash),
+          model: input.model === undefined ? current.model : cleanText(input.model),
+          formatVersion: input.formatVersion === undefined ? current.formatVersion : cleanText(input.formatVersion),
+          error: input.error === undefined ? current.error : cleanText(input.error).slice(0, 500),
+          updatedAt: cleanText(input.updatedAt, timestamp)
+        };
+        return data.annualTimelineInsight;
       });
     },
 

@@ -41,7 +41,7 @@ describe('article AI review', () => {
     expect(request.body).not.toContain('test-key');
     const payload = JSON.parse(request.body);
     expect(payload.model).toBe('deepseek-v4-pro');
-    expect(payload.max_tokens).toBe(3000);
+    expect(payload.max_tokens).toBe(6000);
     expect(payload.messages[0].content).toContain('不少于500字');
     expect(payload.messages[0].content).toContain('全面点评');
     expect(payload.messages[0].content).toContain('自然连贯');
@@ -55,6 +55,27 @@ describe('article AI review', () => {
       formatVersion: ARTICLE_REVIEW_FORMAT_VERSION
     });
     expect(result.sourceHash).toBe(getArticleReviewSourceHash(article));
+  });
+
+  it('rejects DeepSeek responses that stopped because of token length', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [{
+          finish_reason: 'length',
+          message: { content: 'This review was cut in the middle of a sentence' }
+        }]
+      })
+    });
+
+    await expect(generateArticleReview(article, {
+      env: {
+        DEEPSEEK_API_URL: 'https://deepseek.example/chat/completions',
+        DEEPSEEK_API_KEY: 'test-key',
+        DEEPSEEK_MODEL: 'deepseek-v4-pro'
+      },
+      fetchImpl
+    })).rejects.toThrow('DeepSeek response was truncated');
   });
 
   it('detects whether an article needs a fresh AI review', () => {
