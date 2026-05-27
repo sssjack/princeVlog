@@ -8,7 +8,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { mkdir } from 'node:fs/promises';
 import { createAdminAuth, hashPassword } from './auth.js';
-import { normalizeIp, provinceForIp } from './geo.js';
+import { locationForIp, normalizeIp } from './geo.js';
 import { createStore } from './store.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -92,9 +92,11 @@ function visitMiddleware(store, basePath) {
     res.on('finish', () => {
       if (!shouldRecord) return;
       const ip = normalizeIp(req.headers['x-forwarded-for'] || req.ip || req.socket?.remoteAddress);
+      const location = locationForIp(ip);
       store.recordVisit({
         ip,
-        province: provinceForIp(ip),
+        country: location.country,
+        province: location.province,
         path: startedPath.split('?')[0],
         method: req.method,
         statusCode: res.statusCode,

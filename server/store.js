@@ -1,7 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { provinceForIp } from './geo.js';
+import { locationForIp } from './geo.js';
 
 const MAX_VISITS = 10000;
 
@@ -24,9 +24,17 @@ function toBool(value) {
 function displayProvince(visit) {
   const province = cleanText(visit.province);
   if (!province || province === '??' || /^[A-Z]{2}$/.test(province)) {
-    return provinceForIp(visit.ip);
+    return locationForIp(visit.ip).province;
   }
   return province;
+}
+
+function displayCountry(visit) {
+  const country = cleanText(visit.country);
+  if (!country || country === '??') {
+    return locationForIp(visit.ip).country;
+  }
+  return country;
 }
 
 function dateOnly(value) {
@@ -535,10 +543,13 @@ export function createStore(dbPath, { seedDemo = false } = {}) {
 
     async recordVisit(input) {
       return enqueueWrite(async () => {
+        const ip = cleanText(input.ip, 'unknown');
+        const location = locationForIp(ip);
         const visit = {
           id: id(),
-          ip: cleanText(input.ip, 'unknown'),
-          province: cleanText(input.province, '未知'),
+          ip,
+          country: cleanText(input.country, location.country),
+          province: cleanText(input.province, location.province),
           path: cleanText(input.path, '/'),
           method: cleanText(input.method, 'GET'),
           statusCode: Number(input.statusCode || 0),
@@ -593,7 +604,11 @@ export function createStore(dbPath, { seedDemo = false } = {}) {
         recentVisits: [...data.visits]
           .reverse()
           .slice(0, 50)
-          .map((visit) => ({ ...visit, province: displayProvince(visit) }))
+          .map((visit) => ({
+            ...visit,
+            country: displayCountry(visit),
+            province: displayProvince(visit)
+          }))
       };
     }
   };

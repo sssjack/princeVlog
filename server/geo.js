@@ -71,6 +71,23 @@ const CN_REGIONS = {
   ZJ: '浙江'
 };
 
+const COUNTRY_NAMES = {
+  CN: '中国',
+  HK: '中国香港',
+  MO: '中国澳门',
+  TW: '中国台湾',
+  US: '美国',
+  JP: '日本',
+  KR: '韩国',
+  SG: '新加坡',
+  GB: '英国',
+  DE: '德国',
+  FR: '法国',
+  CA: '加拿大',
+  AU: '澳大利亚',
+  RU: '俄罗斯'
+};
+
 function isPrivateIp(ip) {
   return (
     !ip ||
@@ -87,14 +104,40 @@ export function normalizeIp(value) {
   return first.replace(/^::ffff:/, '') || 'unknown';
 }
 
-export function provinceForIp(ip) {
+function countryNameForCode(code) {
+  const value = String(code || '').trim().toUpperCase();
+  if (!value) return '未知';
+  if (COUNTRY_NAMES[value]) return COUNTRY_NAMES[value];
+  try {
+    return new Intl.DisplayNames(['zh-CN'], { type: 'region' }).of(value) || value;
+  } catch {
+    return value;
+  }
+}
+
+export function locationForIp(ip) {
   const normalized = normalizeIp(ip);
-  if (isPrivateIp(normalized)) return '本地/内网';
+  if (isPrivateIp(normalized)) {
+    return { country: '本地/内网', province: '本地/内网' };
+  }
 
   const geo = geoip.lookup(normalized);
-  if (!geo) return '未知';
+  if (!geo) return { country: '未知', province: '未知' };
+
+  const country = countryNameForCode(geo.country);
   if (geo.country === 'CN') {
-    return CN_REGIONS[geo.region] || geo.region || '中国';
+    return {
+      country,
+      province: CN_REGIONS[geo.region] || geo.region || '中国'
+    };
   }
-  return geo.region || geo.country || '未知';
+
+  return {
+    country,
+    province: geo.region || country || '未知'
+  };
+}
+
+export function provinceForIp(ip) {
+  return locationForIp(ip).province;
 }

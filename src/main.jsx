@@ -40,7 +40,9 @@ const PUBLIC_THEMES = [
   { id: 'nocturne', label: '夜航', colors: ['#d8b4fe', '#22d3ee', '#0f172a'] },
   { id: 'ink', label: '墨境', colors: ['#f8fafc', '#64748b', '#020617'] },
   { id: 'ember', label: '余烬', colors: ['#f59e0b', '#fb7185', '#180b08'] },
-  { id: 'ether', label: '星雾', colors: ['#a7f3d0', '#818cf8', '#050816'] }
+  { id: 'ether', label: '星雾', colors: ['#a7f3d0', '#818cf8', '#050816'] },
+  { id: 'lumen', label: '晨光', colors: ['#f8fafc', '#facc15', '#38bdf8'] },
+  { id: 'paper', label: '纸境', colors: ['#fff7ed', '#0f766e', '#111827'] }
 ];
 
 function readStoredPublicTheme() {
@@ -82,6 +84,17 @@ async function api(endpoint, options = {}) {
 function formatDate(value) {
   if (!value) return '';
   return new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(value));
+}
+
+function formatDateTime(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  const pad = (item) => String(item).padStart(2, '0');
+  return [
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`,
+    `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+  ].join(' ');
 }
 
 function Markdown({ content }) {
@@ -278,20 +291,24 @@ function HomePage({ navigate }) {
       <section className="hero-section">
         <div className="hero-media" />
         <div className="hero-content">
-          <div className="eyebrow"><Sparkles size={18} />PrinceVlog</div>
-          <h1>{settings.siteTitle || 'PrinceVlog'}</h1>
-          <p>{settings.heroSubtitle || '记录文字、照片和人生路上的灵感。'}</p>
-          <div className="hero-actions">
-            <IconButton icon={FileText} onClick={() => navigate('/articles')}>阅读文章</IconButton>
-            <IconButton icon={Camera} className="ghost" onClick={() => navigate('/gallery')}>浏览相册</IconButton>
+          <div className="hero-title-stage">
+            <div className="eyebrow"><Sparkles size={18} />PrinceVlog</div>
+            <h1>{settings.siteTitle || 'PrinceVlog'}</h1>
+            <p>{settings.heroSubtitle || '记录文字、照片和人生路上的灵感。'}</p>
           </div>
-          <div className="hero-signal-row" aria-label="首页内容概览">
-            {heroSignals.map((item) => (
-              <span key={item.label}>
-                <strong>{item.value}</strong>
-                <small>{item.label}</small>
-              </span>
-            ))}
+          <div className="hero-primary-panel" aria-label="首页主要功能">
+            <div className="hero-actions">
+              <IconButton icon={FileText} onClick={() => navigate('/articles')}>阅读文章</IconButton>
+              <IconButton icon={Camera} className="ghost" onClick={() => navigate('/gallery')}>浏览相册</IconButton>
+            </div>
+            <div className="hero-signal-row" aria-label="首页内容概览">
+              {heroSignals.map((item) => (
+                <span key={item.label}>
+                  <strong>{item.value}</strong>
+                  <small>{item.label}</small>
+                </span>
+              ))}
+            </div>
           </div>
           <aside className="hero-thought-panel" aria-label="首页哲思">
             <span>Field Note</span>
@@ -727,7 +744,7 @@ function AdminAnalytics() {
   ];
 
   return (
-    <AdminSection title="数据概览" subtitle="请求量、访客、IP、省份和访问时间。">
+    <AdminSection title="数据概览" subtitle="请求量、访客、国家、省份和最近 50 条访问记录。">
       <div className="stats-grid">
         {cards.map(([label, value]) => (
           <div className="stat-card" key={label}>
@@ -737,7 +754,7 @@ function AdminAnalytics() {
         ))}
       </div>
       <div className="admin-columns">
-        <DataTable title="最近访问" rows={analytics.recentVisits} columns={['ip', 'province', 'path', 'createdAt']} />
+        <DataTable title="最近访问" rows={analytics.recentVisits} columns={['ip', 'country', 'province', 'path', 'createdAt']} />
         <DataTable title="省份排行" rows={analytics.provinceStats} columns={['province', 'count']} />
       </div>
     </AdminSection>
@@ -998,7 +1015,7 @@ function AdminAnalyticsPanel() {
   ];
 
   return (
-    <AdminSection title="数据概览" subtitle="请求量、访客、内容构成和地区访问趋势。">
+    <AdminSection title="数据概览" subtitle="请求量、访客、国家、省份和最近 50 条访问记录。">
       <div className="stats-grid">
         {cards.map(([label, value]) => (
           <div className="stat-card" key={label}>
@@ -1021,7 +1038,7 @@ function AdminAnalyticsPanel() {
       </div>
 
       <div className="admin-columns">
-        <DataTable title="最近访问" rows={analytics.recentVisits || []} columns={['ip', 'province', 'path', 'createdAt']} />
+        <DataTable title="最近访问" rows={analytics.recentVisits || []} columns={['ip', 'country', 'province', 'path', 'createdAt']} />
         <DataTable title="热门路径" rows={analytics.topPaths || []} columns={['path', 'count']} />
       </div>
     </AdminSection>
@@ -1633,7 +1650,7 @@ function DataTable({ title, rows, columns }) {
         <tbody>
           {rows.map((row, index) => (
             <tr key={row.id || `${title}-${index}`}>
-              {columns.map((column) => <td key={column}>{column === 'createdAt' ? formatDate(row[column]) : row[column]}</td>)}
+              {columns.map((column) => <td key={column}>{column === 'createdAt' ? formatDateTime(row[column]) : row[column]}</td>)}
             </tr>
           ))}
         </tbody>

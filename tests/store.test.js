@@ -77,6 +77,7 @@ describe('content store', () => {
   it('records visits with ip, province, route and timestamp', async () => {
     await store.recordVisit({
       ip: '8.8.8.8',
+      country: '美国',
       province: 'California',
       path: '/princevlog/articles/a-note',
       userAgent: 'vitest'
@@ -88,12 +89,38 @@ describe('content store', () => {
     expect(analytics.uniqueVisitors).toBe(1);
     expect(analytics.recentVisits[0]).toMatchObject({
       ip: '8.8.8.8',
+      country: '美国',
       province: 'California'
     });
     expect(analytics.requestTrend).toHaveLength(7);
     expect(analytics.requestTrend.at(-1)).toMatchObject({
       date: new Date().toISOString().slice(0, 10),
       count: 1
+    });
+  });
+
+  it('defaults the analytics recent visit list to the latest 50 records', async () => {
+    for (let index = 0; index < 55; index += 1) {
+      await store.recordVisit({
+        ip: `203.0.113.${index}`,
+        country: '中国',
+        province: `测试省${index}`,
+        path: `/princevlog/path-${index}`
+      });
+    }
+
+    const analytics = await store.getAnalytics();
+
+    expect(analytics.recentVisits).toHaveLength(50);
+    expect(analytics.recentVisits[0]).toMatchObject({
+      country: '中国',
+      province: '测试省54',
+      path: '/princevlog/path-54'
+    });
+    expect(analytics.recentVisits.at(-1)).toMatchObject({
+      country: '中国',
+      province: '测试省5',
+      path: '/princevlog/path-5'
     });
   });
 });

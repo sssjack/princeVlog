@@ -23,6 +23,26 @@ describe('public home visual theme', () => {
     expect(styles).toContain('.style-switcher');
   });
 
+  it('adds bright public themes alongside the existing dark styles', () => {
+    expect(mainSource).toContain("id: 'lumen'");
+    expect(mainSource).toContain("label: '晨光'");
+    expect(mainSource).toContain("id: 'paper'");
+    expect(mainSource).toContain("label: '纸境'");
+    expect(styles).toContain('.public-shell[data-theme="lumen"]');
+    expect(styles).toContain('.public-shell[data-theme="paper"]');
+    expect(styles).toContain('color-scheme: light');
+  });
+
+  it('centers the home title and places primary functions below it', () => {
+    expect(mainSource).toContain('hero-title-stage');
+    expect(mainSource).toContain('hero-primary-panel');
+    expect(mainSource.indexOf('hero-title-stage')).toBeLessThan(mainSource.indexOf('hero-primary-panel'));
+    expect(styles).toContain('.hero-title-stage');
+    expect(styles).toContain('.hero-primary-panel');
+    expect(styles).toContain('text-align: center');
+    expect(styles).toContain('--display-font');
+  });
+
   it('refreshes the home hero with poetic motion and data signals', () => {
     expect(mainSource).toContain('hero-signal-row');
     expect(mainSource).toContain('hero-thought-panel');

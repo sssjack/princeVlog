@@ -37,4 +37,11 @@ describe('admin theme shell', () => {
     expect(styles).toContain('.analytics-visual-grid');
     expect(styles).toContain('.trend-chart');
   });
+
+  it('shows country, province and second-level timestamps for the latest 50 visits', () => {
+    expect(mainSource).toContain('function formatDateTime');
+    expect(mainSource).toContain("subtitle=\"请求量、访客、国家、省份和最近 50 条访问记录。\"");
+    expect(mainSource).toContain("columns={['ip', 'country', 'province', 'path', 'createdAt']}");
+    expect(mainSource).toContain("column === 'createdAt' ? formatDateTime(row[column])");
+  });
 });
