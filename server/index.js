@@ -9,12 +9,15 @@ import { fileURLToPath } from 'node:url';
 import { mkdir } from 'node:fs/promises';
 import { createAdminAuth, hashPassword } from './auth.js';
 import { createArticleReviewQueue } from './aiReview.js';
+import { loadEnvFile } from './env.js';
 import { locationForIp, normalizeIp } from './geo.js';
 import { createStore } from './store.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
 const COOKIE_NAME = 'pv_admin_session';
+
+loadEnvFile(path.join(projectRoot, '.env'));
 
 function normalizeBasePath(input) {
   const value = String(input || '/princevlog').trim();
