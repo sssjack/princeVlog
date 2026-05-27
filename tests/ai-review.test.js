@@ -41,10 +41,11 @@ describe('article AI review', () => {
     expect(request.body).not.toContain('test-key');
     const payload = JSON.parse(request.body);
     expect(payload.model).toBe('deepseek-v4-pro');
-    expect(payload.max_tokens).toBe(2200);
-    expect(payload.messages[0].content).toContain('一、概括总结的主要内容');
-    expect(payload.messages[0].content).toContain('九、点评态度和价值');
-    expect(payload.messages[0].content).toContain('必须严格按以下九个小标题输出');
+    expect(payload.max_tokens).toBe(3000);
+    expect(payload.messages[0].content).toContain('不少于500字');
+    expect(payload.messages[0].content).toContain('全面点评');
+    expect(payload.messages[0].content).toContain('自然连贯');
+    expect(payload.messages[0].content).not.toContain('必须严格按以下九个小标题输出');
     expect(payload.messages[1].content).toContain(article.title);
     expect(payload.messages[1].content).toContain(article.content);
     expect(result).toMatchObject({
@@ -67,6 +68,16 @@ describe('article AI review', () => {
       ...article,
       status: 'published',
       aiReview: { status: 'ready', content: 'ok', sourceHash }
+    })).toBe(true);
+    expect(needsArticleAiReview({
+      ...article,
+      status: 'published',
+      aiReview: {
+        status: 'ready',
+        content: 'ok',
+        sourceHash,
+        formatVersion: 'annual-summary-v2'
+      }
     })).toBe(true);
     expect(needsArticleAiReview({
       ...article,

@@ -55,7 +55,7 @@ describe('content store', () => {
       content: 'AI 点评内容',
       sourceHash: 'old-hash',
       model: 'deepseek-v4-pro',
-      formatVersion: 'annual-summary-v2'
+      formatVersion: 'comprehensive-500-v3'
     });
     const reviewed = await store.getArticle(article.id);
     expect(reviewed.aiReview).toMatchObject({
@@ -63,7 +63,7 @@ describe('content store', () => {
       content: 'AI 点评内容',
       sourceHash: 'old-hash',
       model: 'deepseek-v4-pro',
-      formatVersion: 'annual-summary-v2'
+      formatVersion: 'comprehensive-500-v3'
     });
 
     const updated = await store.updateArticle(article.id, {
