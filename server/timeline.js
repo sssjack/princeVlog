@@ -1,5 +1,6 @@
 const ANNUAL_TITLE_PATTERN = /^这一年--.*?(20\d{2})/;
 const DATE_PATTERN = /(?:(20\d{2}|\d{2})年)?\s*(\d{1,2})月\s*(?:(\d{1,2})[日号]|(月初|上旬|上半月|初|月中|中旬|下旬|下半月|月底|末|份))?/;
+const YEAR_ONLY_PATTERN = /^(20\d{2})\s*年?\s*[，,。：:\s-]+(?=\S)/;
 const QUALIFIER_DAYS = {
   月初: 5,
   上旬: 5,
@@ -66,8 +67,22 @@ function yearFromTitle(title) {
 }
 
 function datePartsFromLine(line, fallbackYear) {
-  const match = cleanText(line).match(DATE_PATTERN);
-  if (!match) return null;
+  const text = cleanText(line);
+  const match = text.match(DATE_PATTERN);
+  if (!match) {
+    const yearOnlyMatch = text.match(YEAR_ONLY_PATTERN);
+    if (!yearOnlyMatch) return null;
+    const year = Number(yearOnlyMatch[1]);
+    if (!year || year !== Number(fallbackYear)) return null;
+    return {
+      year,
+      month: 12,
+      day: 31,
+      date: `${year}-12-31`,
+      dateLabel: yearOnlyMatch[1],
+      precision: 'year'
+    };
+  }
 
   const matchedYear = match[1]
     ? (match[1].length === 2 ? Number(`20${match[1]}`) : Number(match[1]))

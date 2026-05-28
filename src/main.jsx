@@ -734,7 +734,7 @@ function YearTimelineExperience({ navigate, compact = false }) {
                         {event.featured ? <span className="timeline-event-badge"><Star size={12} />重点</span> : null}
                       </span>
                       <strong>{event.title}</strong>
-                      <small>{event.precision === 'day' ? 'DAY' : 'PHASE'} · {event.articleTitle}</small>
+                      <small>{event.precision === 'day' ? 'DAY' : event.precision === 'year' ? 'YEAR' : 'PHASE'} · {event.articleTitle}</small>
                     </button>
                   ))}
                 </div>

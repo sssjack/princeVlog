@@ -85,6 +85,26 @@ describe('annual article timeline', () => {
     });
   });
 
+  it('supports year-only anticipation nodes for future annual pages', () => {
+    const timeline = createAnnualTimeline([{
+      id: 'a-2026',
+      title: '这一年--我的2026',
+      slug: 'year-2026',
+      excerpt: '2026 占位',
+      status: 'published',
+      content: '2026，敬请期待。。。。。。'
+    }]);
+
+    expect(timeline.totalEvents).toBe(1);
+    expect(timeline.years[0].year).toBe(2026);
+    expect(timeline.years[0].events[0]).toMatchObject({
+      date: '2026-12-31',
+      dateLabel: '2026',
+      precision: 'year',
+      title: '敬请期待'
+    });
+  });
+
   it('applies AI-polished event titles from the cached title map', () => {
     const rawTimeline = createAnnualTimeline([{
       id: 'a-2025',
