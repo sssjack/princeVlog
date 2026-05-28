@@ -23,6 +23,32 @@ const PROFILE_CHAT_SYSTEM_PROMPT = [
 ].join('\n');
 
 const STOP_CHARS = new Set('的一是在了和也有就都而及与或但被把让给到从这那他她它你我吗呢吧啊呀哦很更最中上下来过着里外个些之其于');
+const BROAD_PROFILE_QUESTION_PATTERNS = [
+  /这几年/u,
+  /这些年/u,
+  /几年/u,
+  /最大/u,
+  /变化/u,
+  /改变/u,
+  /成长/u,
+  /转折/u,
+  /经历/u,
+  /重大/u,
+  /重要/u,
+  /什么样/u,
+  /怎样的人/u,
+  /性格/u,
+  /状态/u,
+  /复盘/u,
+  /总结/u,
+  /人生/u
+];
+const BROAD_PROFILE_EXPANSION_TEXT = [
+  '年度总结 年终总结 这一年 我的20 复盘 成长 改变 变化 转折 经历',
+  '焦虑 秩序 信心 重新出发 继续向前 考试 复试 工作 生活 状态',
+  '计划 目标 方向 自我修复 主动复盘 重要事件 重大事件'
+].join(' ');
+const ANNUAL_SUMMARY_PATTERN = /这一年|我的20|年度|年终|总结|复盘|重新出发|继续向前|焦虑|秩序|信心|考试|复试|工作|生活|计划|目标|方向/u;
 
 function cleanText(value, fallback = '') {
   return String(value ?? fallback).trim();
@@ -65,6 +91,27 @@ function tokenize(value) {
     }
   }
   return [...tokens];
+}
+
+function isBroadProfileQuestion(question) {
+  const text = cleanText(question);
+  return BROAD_PROFILE_QUESTION_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+function stripSearchFields({ tokens: _tokens, searchText: _searchText, ...chunk }) {
+  return chunk;
+}
+
+function scoreAnnualSummaryFallback(chunk) {
+  const source = `${cleanText(chunk.articleTitle)}\n${cleanText(chunk.text)}`;
+  if (!ANNUAL_SUMMARY_PATTERN.test(source)) return 0;
+
+  let score = 10;
+  if (/这一年|年度|年终|总结|复盘/u.test(source)) score += 18;
+  if (/焦虑|秩序|信心|重新出发|主动复盘|继续向前/u.test(source)) score += 12;
+  if (/考试|复试|工作|生活|计划|目标|方向/u.test(source)) score += 8;
+  if (/20\d{2}/u.test(cleanText(chunk.articleTitle))) score += 6;
+  return score;
 }
 
 function splitLongText(text, chunkSize, overlap) {
@@ -228,15 +275,27 @@ export function findRelevantProfileKnowledge(indexOrArticles, question, {
   const index = Array.isArray(indexOrArticles)
     ? buildProfileKnowledgeIndex(indexOrArticles)
     : indexOrArticles;
-  const questionTokens = tokenize(question);
+  const broadQuestion = isBroadProfileQuestion(question);
+  const questionTokens = tokenize(broadQuestion ? `${question}\n${BROAD_PROFILE_EXPANSION_TEXT}` : question);
   if (!index?.chunks?.length || questionTokens.length === 0) return [];
 
-  return index.chunks
+  const scored = index.chunks
     .map((chunk) => ({ ...chunk, score: scoreChunk(chunk, question, questionTokens) }))
-    .filter((chunk) => chunk.score >= minScore)
-    .sort((a, b) => b.score - a.score || new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0))
+    .sort((a, b) => b.score - a.score || new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
+  const hits = scored.filter((chunk) => chunk.score >= minScore);
+  const fallbackHits = broadQuestion && hits.length === 0
+    ? scored
+      .map((chunk) => ({
+        ...chunk,
+        score: scoreAnnualSummaryFallback(chunk)
+      }))
+      .filter((chunk) => chunk.score > 0)
+      .sort((a, b) => b.score - a.score || new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0))
+    : hits;
+
+  return fallbackHits
     .slice(0, limit)
-    .map(({ tokens: _tokens, searchText: _searchText, ...chunk }) => chunk);
+    .map(stripSearchFields);
 }
 
 function postJsonWithNodeHttp(url, payload, headers = {}) {

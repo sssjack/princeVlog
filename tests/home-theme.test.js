@@ -130,10 +130,17 @@ describe('public home visual theme', () => {
     expect(mainSource).toContain('profile-chat-section');
     expect(mainSource).toContain("api('/public/profile-chat'");
     expect(mainSource).toContain('suggestedProfileQuestions');
+    expect(mainSource).toContain('streamProfileAnswer');
+    expect(mainSource).toContain('profile-chat-thinking');
+    expect(mainSource).toContain('profile-chat-caret');
     expect(mainSource).toContain('建议你直接问他本人');
     expect(styles).toContain('.profile-chat-section');
     expect(styles).toContain('.profile-chat-panel');
+    expect(styles).toContain('grid-template-rows: minmax(0, 1fr) auto auto');
     expect(styles).toContain('.profile-chat-message.assistant');
+    expect(styles).toContain('.profile-chat-thinking');
+    expect(styles).toContain('@keyframes profile-thinking');
     expect(styles).toContain('.profile-chat-sources');
+    expect(styles).toContain('height: 34px;');
   });
 });

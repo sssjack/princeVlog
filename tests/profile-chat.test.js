@@ -66,6 +66,32 @@ describe('profile AI chat knowledge base', () => {
     expect(hits[0].text).toContain('国家线1分');
   });
 
+  it('uses annual self-summary context for broad change questions', () => {
+    const index = buildProfileKnowledgeIndex([
+      {
+        id: 'year-2025-growth',
+        title: '这一年--我的2025',
+        subtitle: '复试和重新出发',
+        slug: 'year-2025-growth',
+        excerpt: '这一年有考试、焦虑，也有继续往前走。',
+        content: [
+          '4月，熊哥参加了研究生考试，笔试过了国家线1分，成功进入复试。',
+          '后来他从焦虑等待，到主动复盘，重新建立秩序和信心，也愿意继续向前。'
+        ].join('\n'),
+        status: 'published',
+        updatedAt: '2025-04-20T00:00:00.000Z'
+      }
+    ], { chunkSize: 90, overlap: 16 });
+
+    const hits = findRelevantProfileKnowledge(index, '最大的变化是什么？', { limit: 3 });
+
+    expect(hits[0]).toMatchObject({
+      articleTitle: '这一年--我的2025',
+      articleSlug: 'year-2025-growth'
+    });
+    expect(hits[0].text).toContain('主动复盘');
+  });
+
   it('prioritizes the matching annual article when the question names a year', () => {
     const index = buildProfileKnowledgeIndex([
       {

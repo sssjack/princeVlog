@@ -480,6 +480,7 @@ function HomePage({ navigate }) {
 function ProfileAiChat({ navigate }) {
   const [question, setQuestion] = useState('');
   const [loading, setLoading] = useState(false);
+  const streamTimers = useRef([]);
   const [messages, setMessages] = useState([
     {
       id: 'welcome',
@@ -487,6 +488,53 @@ function ProfileAiChat({ navigate }) {
       content: '嗨，我会翻 Prince 已发布的文章来回答。文章里没写清楚的事，我会老实说不知道，再建议你问他本人。'
     }
   ]);
+
+  useEffect(() => () => {
+    streamTimers.current.forEach((timer) => window.clearTimeout(timer));
+    streamTimers.current = [];
+  }, []);
+
+  function queueProfileStreamTick(callback, delay) {
+    const timer = window.setTimeout(() => {
+      streamTimers.current = streamTimers.current.filter((item) => item !== timer);
+      callback();
+    }, delay);
+    streamTimers.current.push(timer);
+  }
+
+  function streamProfileAnswer(messageId, nextContent, sources = [], onDone = () => {}) {
+    const fullAnswer = nextContent || PROFILE_CHAT_UNKNOWN;
+    let cursor = 0;
+    const chunkSize = fullAnswer.length > 120 ? 3 : 2;
+
+    const reveal = () => {
+      cursor = Math.min(fullAnswer.length, cursor + chunkSize);
+      const done = cursor >= fullAnswer.length;
+      const visibleContent = fullAnswer.slice(0, cursor);
+
+      setMessages((current) => current.map((item) => (
+        item.id === messageId
+          ? {
+            ...item,
+            content: visibleContent,
+            sources: done ? sources : [],
+            loading: false,
+            streaming: !done
+          }
+          : item
+      )));
+
+      if (done) {
+        onDone();
+        return;
+      }
+
+      const previousChar = fullAnswer[cursor - 1] || '';
+      queueProfileStreamTick(reveal, /[。！？!?]/u.test(previousChar) ? 80 : 20);
+    };
+
+    reveal();
+  }
 
   async function askProfile(nextQuestion = question) {
     const cleanQuestion = nextQuestion.trim();
@@ -502,7 +550,7 @@ function ProfileAiChat({ navigate }) {
     setMessages((current) => [
       ...current,
       userMessage,
-      { id: pendingId, role: 'assistant', content: '正在翻 Prince 的文章，阳光小脑袋高速检索中...', loading: true }
+      { id: pendingId, role: 'assistant', content: '', loading: true }
     ]);
 
     try {
@@ -510,28 +558,13 @@ function ProfileAiChat({ navigate }) {
         method: 'POST',
         body: { question: cleanQuestion }
       });
-      setMessages((current) => current.map((item) => (
-        item.id === pendingId
-          ? {
-            id: pendingId,
-            role: 'assistant',
-            content: result.answer || PROFILE_CHAT_UNKNOWN,
-            sources: result.sources || []
-          }
-          : item
-      )));
+      streamProfileAnswer(pendingId, result.answer || PROFILE_CHAT_UNKNOWN, result.sources || [], () => {
+        setLoading(false);
+      });
     } catch (error) {
-      setMessages((current) => current.map((item) => (
-        item.id === pendingId
-          ? {
-            id: pendingId,
-            role: 'assistant',
-            content: error.message || 'AI 刚刚短暂掉线了，等一下再问我。'
-          }
-          : item
-      )));
-    } finally {
-      setLoading(false);
+      streamProfileAnswer(pendingId, error.message || 'AI 刚刚短暂掉线了，等一下再问我。', [], () => {
+        setLoading(false);
+      });
     }
   }
 
@@ -555,7 +588,19 @@ function ProfileAiChat({ navigate }) {
           {messages.map((message) => (
             <article className={`profile-chat-message ${message.role}`} key={message.id}>
               <span>{message.role === 'user' ? '你' : 'PV'}</span>
-              <p>{message.content}</p>
+              {message.loading ? (
+                <div className="profile-chat-thinking" role="status" aria-label="AI 正在思考">
+                  <span>正在翻文章</span>
+                  <i />
+                  <i />
+                  <i />
+                </div>
+              ) : (
+                <p>
+                  {message.content}
+                  {message.streaming ? <i className="profile-chat-caret" aria-hidden="true" /> : null}
+                </p>
+              )}
               {message.sources?.length ? (
                 <div className="profile-chat-sources">
                   <small>参考文章</small>
