@@ -92,6 +92,39 @@ describe('profile AI chat knowledge base', () => {
     expect(hits[0].text).toContain('主动复盘');
   });
 
+  it('asks AI to offer article-grounded opinions for weakness questions', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [{
+          message: {
+            content: '根据文章归纳，Prince 的短板可能是容易被焦虑牵着走，状态不稳时需要重新建立秩序。'
+          }
+        }]
+      })
+    });
+
+    const result = await answerProfileQuestion('他的缺点是什么？', articles, {
+      env: {
+        DEEPSEEK_API_URL: 'https://deepseek.example/chat/completions',
+        DEEPSEEK_API_KEY: 'test-key',
+        DEEPSEEK_MODEL: 'deepseek-v4-pro'
+      },
+      fetchImpl
+    });
+
+    expect(fetchImpl).toHaveBeenCalledOnce();
+    const [, request] = fetchImpl.mock.calls[0];
+    const payload = JSON.parse(request.body);
+    expect(payload.messages[0].content).toContain('可以给出你的看法');
+    expect(payload.messages[1].content).toContain('焦虑');
+    expect(result.answer).toContain('焦虑');
+    expect(result.sources[0]).toMatchObject({
+      title: '这一年--我的2025',
+      slug: 'year-2025'
+    });
+  });
+
   it('prioritizes the matching annual article when the question names a year', () => {
     const index = buildProfileKnowledgeIndex([
       {

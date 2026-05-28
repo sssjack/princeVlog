@@ -17,6 +17,7 @@ const PROFILE_CHAT_SYSTEM_PROMPT = [
   '如果参考片段没有明确依据，不要猜测，不要编造，不要用常识补全。',
   `没有依据时，回答：“${UNKNOWN_PROFILE_ANSWER}”`,
   '回答要自然、阳光、可爱一点，但必须忠实于文章事实。',
+  '用户问优点、缺点、性格、建议等评价型问题时，可以给出你的看法，但必须基于参考片段做温和归纳，并说明这是从文章里归纳出的判断。',
   '先直接回答用户的具体问题，不要把整篇文章或整年经历都总结一遍。',
   '可以简短引用文章中的事实，但不要大段复述原文。',
   '如果答案有依据，结尾用一行列出“参考文章：文章名”。'
@@ -43,12 +44,32 @@ const BROAD_PROFILE_QUESTION_PATTERNS = [
   /总结/u,
   /人生/u
 ];
+const EVALUATIVE_PROFILE_QUESTION_PATTERNS = [
+  /优点/u,
+  /优势/u,
+  /长处/u,
+  /缺点/u,
+  /不足/u,
+  /短板/u,
+  /弱点/u,
+  /问题/u,
+  /评价/u,
+  /看法/u,
+  /建议/u,
+  /适合/u,
+  /不适合/u
+];
 const BROAD_PROFILE_EXPANSION_TEXT = [
   '年度总结 年终总结 这一年 我的20 复盘 成长 改变 变化 转折 经历',
   '焦虑 秩序 信心 重新出发 继续向前 考试 复试 工作 生活 状态',
   '计划 目标 方向 自我修复 主动复盘 重要事件 重大事件'
 ].join(' ');
-const ANNUAL_SUMMARY_PATTERN = /这一年|我的20|年度|年终|总结|复盘|重新出发|继续向前|焦虑|秩序|信心|考试|复试|工作|生活|计划|目标|方向/u;
+const EVALUATIVE_PROFILE_EXPANSION_TEXT = [
+  '优点 优势 长处 缺点 不足 短板 弱点 评价 看法 建议',
+  '焦虑 秩序 信心 状态 执行 计划 目标 方向 反思 复盘',
+  '工作 考试 生活 成长 压力 情绪 自我修复 继续向前'
+].join(' ');
+const ANNUAL_SUMMARY_PATTERN = /这一年|我的20|年度|年终|总结|复盘|重新出发|继续向前|焦虑|秩序|信心|考试|复试|工作|生活|计划|目标|方向|优点|缺点|不足|短板|建议|评价/u;
 
 function cleanText(value, fallback = '') {
   return String(value ?? fallback).trim();
@@ -96,6 +117,11 @@ function tokenize(value) {
 function isBroadProfileQuestion(question) {
   const text = cleanText(question);
   return BROAD_PROFILE_QUESTION_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+function isEvaluativeProfileQuestion(question) {
+  const text = cleanText(question);
+  return EVALUATIVE_PROFILE_QUESTION_PATTERNS.some((pattern) => pattern.test(text));
 }
 
 function stripSearchFields({ tokens: _tokens, searchText: _searchText, ...chunk }) {
@@ -276,14 +302,19 @@ export function findRelevantProfileKnowledge(indexOrArticles, question, {
     ? buildProfileKnowledgeIndex(indexOrArticles)
     : indexOrArticles;
   const broadQuestion = isBroadProfileQuestion(question);
-  const questionTokens = tokenize(broadQuestion ? `${question}\n${BROAD_PROFILE_EXPANSION_TEXT}` : question);
+  const evaluativeQuestion = isEvaluativeProfileQuestion(question);
+  const expansionText = [
+    broadQuestion ? BROAD_PROFILE_EXPANSION_TEXT : '',
+    evaluativeQuestion ? EVALUATIVE_PROFILE_EXPANSION_TEXT : ''
+  ].filter(Boolean).join('\n');
+  const questionTokens = tokenize(expansionText ? `${question}\n${expansionText}` : question);
   if (!index?.chunks?.length || questionTokens.length === 0) return [];
 
   const scored = index.chunks
     .map((chunk) => ({ ...chunk, score: scoreChunk(chunk, question, questionTokens) }))
     .sort((a, b) => b.score - a.score || new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
   const hits = scored.filter((chunk) => chunk.score >= minScore);
-  const fallbackHits = broadQuestion && hits.length === 0
+  const fallbackHits = (broadQuestion || evaluativeQuestion) && hits.length === 0
     ? scored
       .map((chunk) => ({
         ...chunk,
