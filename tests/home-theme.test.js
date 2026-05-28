@@ -141,6 +141,8 @@ describe('public home visual theme', () => {
     expect(styles).toContain('.profile-chat-thinking');
     expect(styles).toContain('@keyframes profile-thinking');
     expect(styles).toContain('.profile-chat-sources');
+    expect(styles).toContain('scrollbar-color: color-mix');
+    expect(styles).toContain('.profile-chat-messages::-webkit-scrollbar-button');
     expect(styles).toContain('height: 34px;');
   });
 });
