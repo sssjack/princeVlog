@@ -13,7 +13,7 @@
 ```text
 PrinceVlog/
 |-- dist/              # Vite 构建后的前端静态文件，生产启动前必须存在
-|-- server/            # Express 服务端，负责 API、后台登录、上传、访问统计
+|-- server/            # Express 服务端，负责 API、后台登录、上传、访问统计和 AI 问答
 |-- src/               # React 前端源码
 |-- data/              # 本地开发数据，生产环境建议放到 /opt/princevlog/data
 |-- package.json
@@ -25,11 +25,14 @@ PrinceVlog/
 
 ```text
 /opt/princevlog/
-|-- app/               # Git 拉取的项目代码
-`-- data/              # 生产数据和上传图片，部署更新时不要删除
+|-- current -> releases/<timestamp>/   # 当前运行版本，PM2 从这里启动
+|-- releases/                          # 每次部署生成一个可回滚版本
+`-- data/                              # 生产数据和上传图片，部署更新时不要删除
     |-- data.json
     `-- uploads/
 ```
+
+也可以使用 `/opt/princevlog/app` 单目录 Git 拉取部署；当前线上环境采用 `releases/<timestamp>` + `current` 软链方式，便于保留旧版本和快速回滚。
 
 ## 2. 本地开发与构建
 
@@ -122,9 +125,14 @@ ADMIN_USER=root
 ADMIN_PASSWORD_HASH='replace-with-scrypt-hash'
 SESSION_SECRET='replace-with-long-random-string'
 COOKIE_SECURE=false
+DEEPSEEK_API_KEY='replace-with-api-key'
+DEEPSEEK_MODEL=deepseek-v4-pro
+DEEPSEEK_API_URL=https://api.deepseek.com/chat/completions
 ```
 
 如果后续启用 HTTPS，可以把 `COOKIE_SECURE` 改为 `true`。
+
+`DEEPSEEK_API_KEY` 用于首页 Ask Prince AI。AI 问答只会把已发布文章、摘要和 AI 复盘检索片段发送给模型；草稿不会进入公开知识库。不要把真实 API Key 写入仓库。
 
 注意：当前项目代码不会自动读取 `.env` 文件，使用 PM2 启动或重启前需要先把 `.env` 导入当前 shell 环境。
 
@@ -171,6 +179,9 @@ pm2 status
 pm2 logs princevlog
 curl -I http://127.0.0.1:4210/princevlog/
 curl http://127.0.0.1:4210/princevlog/api/public/bootstrap
+curl -X POST http://127.0.0.1:4210/princevlog/api/public/profile-chat \
+  -H 'Content-Type: application/json' \
+  -d '{"question":"Prince 这几年最大的变化是什么？"}'
 ```
 
 ## 5. Nginx 子路径代理
@@ -216,6 +227,9 @@ systemctl reload nginx
 curl -I http://www.clockwise.asia/princevlog/
 curl -I http://www.clockwise.asia/princevlog/admin
 curl http://www.clockwise.asia/princevlog/api/public/bootstrap
+curl -X POST http://www.clockwise.asia/princevlog/api/public/profile-chat \
+  -H 'Content-Type: application/json' \
+  -d '{"question":"Prince 这几年最大的变化是什么？"}'
 ```
 
 浏览器访问：
@@ -230,6 +244,7 @@ curl http://www.clockwise.asia/princevlog/api/public/bootstrap
 - 相册上传和照片墙是否正常
 - 评论、留言回复是否正常
 - 访问统计是否记录请求量、访客 IP、省份和时间
+- 首页 Ask Prince AI 是否能显示思考动效、逐字输出，并给出文章来源
 
 ## 7. 后续更新部署
 
@@ -253,6 +268,9 @@ pm2 restart princevlog --update-env
 pm2 status
 curl -I http://127.0.0.1:4210/princevlog/
 curl -I http://www.clockwise.asia/princevlog/
+curl -X POST http://127.0.0.1:4210/princevlog/api/public/profile-chat \
+  -H 'Content-Type: application/json' \
+  -d '{"question":"Prince 这几年最大的变化是什么？"}'
 ```
 
 如果只是更新文章、相册、分类、留言回复等内容，不需要重新部署代码，直接在后台操作即可。
@@ -348,3 +366,40 @@ ls -la /opt/princevlog/data/uploads
 ```
 
 同时确认 Nginx 没有拦截 `/princevlog/uploads/`，该路径应转发到 Node 服务。
+
+### Ask Prince AI 返回配置错误
+
+如果问题能命中文章知识，但接口返回模型配置相关错误，检查 PM2 启动环境里是否存在：
+
+```bash
+pm2 env princevlog | grep DEEPSEEK
+```
+
+确认 `.env` 或 PM2 环境中配置了：
+
+- `DEEPSEEK_API_KEY`
+- `DEEPSEEK_MODEL`
+- `DEEPSEEK_API_URL`
+
+修改后需要重新导入环境变量并重启：
+
+```bash
+cd /opt/princevlog/current
+set -a
+. ./.env
+set +a
+pm2 restart princevlog --update-env
+```
+
+### Ask Prince AI 对宽泛问题回答“不知道”
+
+宽泛问题例如“最大的变化是什么”“经历过哪些转折”依赖年度总结和复盘类内容。排查顺序：
+
+```bash
+curl http://127.0.0.1:4210/princevlog/api/public/bootstrap
+curl -X POST http://127.0.0.1:4210/princevlog/api/public/profile-chat \
+  -H 'Content-Type: application/json' \
+  -d '{"question":"Prince 这几年最大的变化是什么？"}'
+```
+
+确认相关年度总结文章是 `published` 状态，且正文、摘要或 AI 复盘中包含足够的个人经历信息。草稿文章不会进入公开知识库。

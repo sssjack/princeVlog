@@ -10,6 +10,7 @@ PrinceVlog 是一个个人博客与照片相册网站，适合用来记录文章
 - **Markdown 写作体验**：后台文章编辑支持 Markdown，前台自动渲染为安全的 HTML 内容。
 - **可运营的后台管理**：文章发布、草稿、推荐、分类、相册、照片上传、评论回复和站点文案都能在后台维护。
 - **访问统计内置**：服务端记录访问 IP、地区、路径和时间，后台提供请求量、访客数、今日访问、内容数量与省份排行。
+- **文章知识 AI 问答**：首页可向 Prince AI 提问，系统会基于已发布文章和年度总结回答；找不到依据时会明确提示“不知道，建议问本人”。
 - **响应式界面**：前台与后台均适配桌面端和移动端，后台在小屏幕下使用抽屉式导航。
 - **轻量部署**：使用 React + Vite 构建静态前端，Express 提供 API、认证、上传和静态资源服务，PM2/Nginx 即可上线。
 
@@ -35,6 +36,7 @@ PrinceVlog 是一个个人博客与照片相册网站，适合用来记录文章
 - 文章详情页，支持 Markdown 内容、阅读量和评论。
 - 相册页，支持按文件夹或日期浏览照片。
 - 首页留言板，访客可留言，后台可回复。
+- 首页 About me 与 Ask Prince AI：支持个人介绍、社交账号入口、文章知识问答、思考动效和逐字流式展示。
 
 ### 后台
 
@@ -65,10 +67,11 @@ PrinceVlog 是一个个人博客与照片相册网站，适合用来记录文章
 - **geoip-lite**：IP 地区识别。
 - **compression / cors**：压缩和跨域支持。
 - **文件型数据存储**：默认使用 `data/data.json`，上传图片保存在 `data/uploads/`。
+- **DeepSeek Chat API**：驱动首页个人知识问答，检索范围只包含已发布文章、摘要和 AI 复盘内容。
 
 ### 测试与部署
 
-- **Vitest**：认证、数据存储、地区识别和后台主题结构测试。
+- **Vitest**：认证、数据存储、地区识别、时间轴、AI 问答知识库和主题结构测试。
 - **PM2**：生产进程管理。
 - **Nginx**：反向代理 `/princevlog/` 子路径到 Node 服务。
 
@@ -83,7 +86,8 @@ PrinceVlog/
 |   |-- index.js        # Express API、上传、静态资源和路由
 |   |-- auth.js         # 管理员密码哈希与会话签名
 |   |-- store.js        # 文件型数据读写
-|   `-- geo.js          # IP 地区识别
+|   |-- geo.js          # IP 地区识别
+|   `-- profileChat.js  # 文章知识库检索与 AI 问答
 |-- tests/              # Vitest 测试
 |-- data/               # 本地开发数据和上传文件
 |-- dist/               # Vite 构建产物
@@ -125,9 +129,14 @@ ADMIN_USER=root
 ADMIN_PASSWORD_HASH='replace-with-scrypt-hash'
 SESSION_SECRET='replace-with-long-random-string'
 COOKIE_SECURE=false
+DEEPSEEK_API_KEY='replace-with-api-key'
+DEEPSEEK_MODEL=deepseek-v4-pro
+DEEPSEEK_API_URL=https://api.deepseek.com/chat/completions
 ```
 
-不要把真实服务器密码、后台明文密码、`SESSION_SECRET` 或生产用 `ADMIN_PASSWORD_HASH` 提交到 Git 仓库。完整部署流程见 [DEPLOYMENT.md](./DEPLOYMENT.md)。
+`DEEPSEEK_API_KEY` 用于首页 Ask Prince AI。如果没有配置，命中文章知识后接口会返回配置错误；如果问题没有命中文章知识，则会直接返回“不知道”的兜底回答，不会调用模型。
+
+不要把真实服务器密码、后台明文密码、`SESSION_SECRET`、生产用 `ADMIN_PASSWORD_HASH` 或 `DEEPSEEK_API_KEY` 提交到 Git 仓库。完整部署流程见 [DEPLOYMENT.md](./DEPLOYMENT.md)。
 
 ## 常用命令
 
@@ -141,6 +150,18 @@ npm run build
 # 启动 Express 服务
 npm start
 ```
+
+## AI 问答知识库
+
+首页 Ask Prince AI 的知识库来自当前已发布文章，包含标题、副标题、摘要、正文和后台生成的 AI 复盘内容。草稿不会进入公开知识库。
+
+检索逻辑在 `server/profileChat.js` 中维护：
+
+- 普通问题按中文 token、年份和文章内容打分召回。
+- “这几年最大的变化是什么”“经历过哪些转折”等宽泛问题会额外扩展到年度总结、成长、复盘、秩序、信心、重新出发等语义。
+- 没有可靠片段时，接口返回固定兜底文案，避免模型编造。
+
+前端问答 UI 在 `src/main.jsx` 和 `src/styles.css` 中维护，包含推荐问题、思考小动效、逐字流式展示和参考文章跳转。
 
 ## 适合谁使用
 
