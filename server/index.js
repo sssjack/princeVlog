@@ -11,6 +11,7 @@ import { createAdminAuth, hashPassword } from './auth.js';
 import { createArticleReviewQueue } from './aiReview.js';
 import { loadEnvFile } from './env.js';
 import { locationForIp, normalizeIp } from './geo.js';
+import { answerProfileQuestion } from './profileChat.js';
 import { createStore } from './store.js';
 import { createAnnualTimeline } from './timeline.js';
 import { createAnnualTimelineInsightQueue, needsAnnualTimelineInsight } from './timelineInsight.js';
@@ -117,6 +118,22 @@ function visitMiddleware(store, basePath) {
   };
 }
 
+function createPublicRateLimit({ windowMs = 60_000, max = 8 } = {}) {
+  const buckets = new Map();
+  return (req, res, next) => {
+    const key = normalizeIp(req.headers['x-forwarded-for'] || req.ip || req.socket?.remoteAddress) || 'anonymous';
+    const timestamp = Date.now();
+    const bucket = (buckets.get(key) || []).filter((item) => timestamp - item < windowMs);
+    if (bucket.length >= max) {
+      res.status(429).json({ error: '提问太快了，稍等一下再继续。' });
+      return;
+    }
+    bucket.push(timestamp);
+    buckets.set(key, bucket);
+    next();
+  };
+}
+
 function articlePayload(body) {
   return {
     title: text(body.title),
@@ -146,6 +163,7 @@ export async function createApp() {
   const auth = await buildAuth();
   const upload = createUpload(uploadDir);
   const adminOnly = requireAdmin(auth);
+  const publicAiLimit = createPublicRateLimit({ max: 8 });
 
   app.set('trust proxy', true);
   app.use(compression());
@@ -233,6 +251,17 @@ export async function createApp() {
       content: req.body.content
     });
     res.status(201).json({ comment });
+  }));
+
+  router.post('/api/public/profile-chat', publicAiLimit, asyncHandler(async (req, res) => {
+    const question = text(req.body.question).slice(0, 500);
+    if (!question) {
+      res.status(400).json({ error: '问题不能为空' });
+      return;
+    }
+    const articles = await store.listArticles({});
+    const result = await answerProfileQuestion(question, articles);
+    res.json(result);
   }));
 
   router.get('/api/public/albums', asyncHandler(async (req, res) => {

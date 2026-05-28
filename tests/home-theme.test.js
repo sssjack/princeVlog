@@ -124,4 +124,16 @@ describe('public home visual theme', () => {
     expect(styles).toContain('.about-avatar-card');
     expect(styles).toContain('.about-social-links');
   });
+
+  it('adds an article-grounded AI profile chat section that matches the public theme', () => {
+    expect(mainSource).toContain('function ProfileAiChat');
+    expect(mainSource).toContain('profile-chat-section');
+    expect(mainSource).toContain("api('/public/profile-chat'");
+    expect(mainSource).toContain('suggestedProfileQuestions');
+    expect(mainSource).toContain('建议你直接问他本人');
+    expect(styles).toContain('.profile-chat-section');
+    expect(styles).toContain('.profile-chat-panel');
+    expect(styles).toContain('.profile-chat-message.assistant');
+    expect(styles).toContain('.profile-chat-sources');
+  });
 });

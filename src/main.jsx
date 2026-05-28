@@ -39,6 +39,12 @@ import aboutAvatarUrl from './assets/about-avatar.jpg';
 
 const BASE_PATH = (import.meta.env.BASE_URL || '/princevlog/').replace(/\/$/, '');
 const API_BASE = `${BASE_PATH}/api`;
+const PROFILE_CHAT_UNKNOWN = '这个问题我从 Prince 的文章里没有找到可靠信息，建议你直接问他本人。';
+const suggestedProfileQuestions = [
+  'Prince 这几年最大的变化是什么？',
+  '他经历过哪些重要转折？',
+  '他是一个什么样的人？'
+];
 const PUBLIC_THEMES = [
   { id: 'nocturne', label: '夜航', colors: ['#d8b4fe', '#22d3ee', '#0f172a'] },
   { id: 'ink', label: '墨境', colors: ['#f8fafc', '#64748b', '#020617'] },
@@ -311,6 +317,10 @@ function HomePage({ navigate }) {
     { label: '相簿', value: albums.length }
   ];
 
+  function scrollToProfileChat() {
+    document.getElementById('profile-chat')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
   if (loading) return <Loading label="正在加载 PrinceVlog" />;
   if (error) return <ErrorView message={error} />;
 
@@ -328,6 +338,7 @@ function HomePage({ navigate }) {
             <div className="hero-actions">
               <IconButton icon={FileText} onClick={() => navigate('/articles')}>阅读文章</IconButton>
               <IconButton icon={Camera} className="ghost" onClick={() => navigate('/gallery')}>浏览相册</IconButton>
+              <IconButton icon={MessageCircle} className="ghost" onClick={scrollToProfileChat}>问问 AI</IconButton>
             </div>
             <div className="hero-signal-row" aria-label="首页内容概览">
               {heroSignals.map((item) => (
@@ -387,6 +398,8 @@ function HomePage({ navigate }) {
           </div>
         </div>
       </FadeIn>
+
+      <ProfileAiChat navigate={navigate} />
 
       <FadeIn tag="section" className="content-band">
         <div className="section-head">
@@ -461,6 +474,125 @@ function HomePage({ navigate }) {
         <MessageBoard initialMessages={data?.messages || []} />
       </FadeIn>
     </div>
+  );
+}
+
+function ProfileAiChat({ navigate }) {
+  const [question, setQuestion] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [messages, setMessages] = useState([
+    {
+      id: 'welcome',
+      role: 'assistant',
+      content: '嗨，我会翻 Prince 已发布的文章来回答。文章里没写清楚的事，我会老实说不知道，再建议你问他本人。'
+    }
+  ]);
+
+  async function askProfile(nextQuestion = question) {
+    const cleanQuestion = nextQuestion.trim();
+    if (!cleanQuestion || loading) return;
+    const userMessage = {
+      id: `user-${Date.now()}`,
+      role: 'user',
+      content: cleanQuestion
+    };
+    const pendingId = `assistant-${Date.now()}`;
+    setQuestion('');
+    setLoading(true);
+    setMessages((current) => [
+      ...current,
+      userMessage,
+      { id: pendingId, role: 'assistant', content: '正在翻 Prince 的文章，阳光小脑袋高速检索中...', loading: true }
+    ]);
+
+    try {
+      const result = await api('/public/profile-chat', {
+        method: 'POST',
+        body: { question: cleanQuestion }
+      });
+      setMessages((current) => current.map((item) => (
+        item.id === pendingId
+          ? {
+            id: pendingId,
+            role: 'assistant',
+            content: result.answer || PROFILE_CHAT_UNKNOWN,
+            sources: result.sources || []
+          }
+          : item
+      )));
+    } catch (error) {
+      setMessages((current) => current.map((item) => (
+        item.id === pendingId
+          ? {
+            id: pendingId,
+            role: 'assistant',
+            content: error.message || 'AI 刚刚短暂掉线了，等一下再问我。'
+          }
+          : item
+      )));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function submit(event) {
+    event.preventDefault();
+    askProfile();
+  }
+
+  return (
+    <FadeIn tag="section" className="content-band profile-chat-section" id="profile-chat">
+      <div className="profile-chat-copy">
+        <span className="about-kicker"><MessageCircle size={16} />Ask Prince AI</span>
+        <h2>问问文章里的我</h2>
+        <p>
+          这里会优先阅读已发布文章和年终总结，再用轻快一点的语气回答。
+          如果文章没有写到，我会直接说不知道。
+        </p>
+      </div>
+      <div className="profile-chat-panel">
+        <div className="profile-chat-messages" aria-live="polite">
+          {messages.map((message) => (
+            <article className={`profile-chat-message ${message.role}`} key={message.id}>
+              <span>{message.role === 'user' ? '你' : 'PV'}</span>
+              <p>{message.content}</p>
+              {message.sources?.length ? (
+                <div className="profile-chat-sources">
+                  <small>参考文章</small>
+                  {message.sources.map((source) => (
+                    <button
+                      type="button"
+                      key={source.id || source.slug || source.title}
+                      onClick={() => source.slug && navigate(`/article/${source.slug}`)}
+                    >
+                      {source.title}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </article>
+          ))}
+        </div>
+        <div className="profile-chat-suggestions" aria-label="推荐问题">
+          {suggestedProfileQuestions.map((item) => (
+            <button type="button" key={item} disabled={loading} onClick={() => askProfile(item)}>
+              {item}
+            </button>
+          ))}
+        </div>
+        <form className="profile-chat-form" onSubmit={submit}>
+          <input
+            value={question}
+            onChange={(event) => setQuestion(event.target.value)}
+            placeholder="问一个关于 Prince 的问题"
+            maxLength={500}
+          />
+          <button type="submit" aria-label="发送问题" disabled={loading || !question.trim()}>
+            <Send size={18} />
+          </button>
+        </form>
+      </div>
+    </FadeIn>
   );
 }
 
