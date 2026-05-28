@@ -103,6 +103,32 @@ describe('content store', () => {
     expect(reviewed.aiReview.content.endsWith('THE_END')).toBe(true);
   });
 
+  it('stores cached AI timeline event titles', async () => {
+    await store.setTimelineEventTitles({
+      status: 'ready',
+      titles: {
+        event_one: '完整的小标题',
+        empty_title: ''
+      },
+      sourceHash: 'timeline-hash',
+      model: 'deepseek-v4-pro',
+      formatVersion: 'timeline-title-v1'
+    });
+
+    const titles = await store.getTimelineEventTitles();
+
+    expect(titles).toMatchObject({
+      status: 'ready',
+      titles: {
+        event_one: '完整的小标题'
+      },
+      sourceHash: 'timeline-hash',
+      model: 'deepseek-v4-pro',
+      formatVersion: 'timeline-title-v1'
+    });
+    expect(titles.titles.empty_title).toBeUndefined();
+  });
+
   it('keeps album photos queryable by folder and date', async () => {
     const album = await store.createAlbum({ title: '城市夜色', folder: 'night-city', description: '灯光和晚风' });
     await store.createPhoto({

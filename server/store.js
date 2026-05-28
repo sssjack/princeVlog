@@ -77,6 +77,28 @@ function normalizeAnnualTimelineInsight(value, timestamp = now()) {
   };
 }
 
+function normalizeTimelineEventTitles(value, timestamp = now()) {
+  const state = value && typeof value === 'object' ? value : {};
+  const status = ['pending', 'ready', 'failed'].includes(state.status) ? state.status : 'pending';
+  const titles = {};
+  if (state.titles && typeof state.titles === 'object') {
+    for (const [key, title] of Object.entries(state.titles)) {
+      const cleanKey = cleanText(key);
+      const cleanTitle = cleanText(title);
+      if (cleanKey && cleanTitle) titles[cleanKey] = cleanTitle;
+    }
+  }
+  return {
+    status,
+    titles,
+    sourceHash: cleanText(state.sourceHash),
+    model: cleanText(state.model),
+    formatVersion: cleanText(state.formatVersion),
+    error: cleanText(state.error),
+    updatedAt: cleanText(state.updatedAt, timestamp)
+  };
+}
+
 function pendingAiReview(previous, timestamp = now()) {
   const review = normalizeAiReview(previous, timestamp);
   return {
@@ -186,7 +208,8 @@ function defaultData(seedDemo = false) {
     comments: [],
     messages: [],
     visits: [],
-    annualTimelineInsight: normalizeAnnualTimelineInsight(null)
+    annualTimelineInsight: normalizeAnnualTimelineInsight(null),
+    timelineEventTitles: normalizeTimelineEventTitles(null)
   };
 }
 
@@ -203,7 +226,8 @@ function normalizeData(data) {
     comments: Array.isArray(data?.comments) ? data.comments : [],
     messages: Array.isArray(data?.messages) ? data.messages : [],
     visits: Array.isArray(data?.visits) ? data.visits : [],
-    annualTimelineInsight: normalizeAnnualTimelineInsight(data?.annualTimelineInsight)
+    annualTimelineInsight: normalizeAnnualTimelineInsight(data?.annualTimelineInsight),
+    timelineEventTitles: normalizeTimelineEventTitles(data?.timelineEventTitles)
   };
 }
 
@@ -446,6 +470,30 @@ export function createStore(dbPath, { seedDemo = false } = {}) {
           updatedAt: cleanText(input.updatedAt, timestamp)
         };
         return data.annualTimelineInsight;
+      });
+    },
+
+    async getTimelineEventTitles() {
+      data.timelineEventTitles = normalizeTimelineEventTitles(data.timelineEventTitles);
+      return data.timelineEventTitles;
+    },
+
+    async setTimelineEventTitles(input) {
+      return enqueueWrite(async () => {
+        const timestamp = now();
+        const current = normalizeTimelineEventTitles(data.timelineEventTitles, timestamp);
+        data.timelineEventTitles = {
+          ...current,
+          status: ['pending', 'ready', 'failed'].includes(input.status) ? input.status : current.status,
+          titles: input.titles === undefined ? current.titles : normalizeTimelineEventTitles({ titles: input.titles }, timestamp).titles,
+          sourceHash: input.sourceHash === undefined ? current.sourceHash : cleanText(input.sourceHash),
+          model: input.model === undefined ? current.model : cleanText(input.model),
+          formatVersion: input.formatVersion === undefined ? current.formatVersion : cleanText(input.formatVersion),
+          error: input.error === undefined ? current.error : cleanText(input.error).slice(0, 500),
+          updatedAt: cleanText(input.updatedAt, timestamp)
+        };
+        data.timelineEventTitles = normalizeTimelineEventTitles(data.timelineEventTitles, timestamp);
+        return data.timelineEventTitles;
       });
     },
 

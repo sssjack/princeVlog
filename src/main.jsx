@@ -12,6 +12,7 @@ import {
   Eye,
   FileText,
   Folder,
+  Github,
   Home,
   ImagePlus,
   Layers,
@@ -213,6 +214,9 @@ function PublicLayout({ children, navigate, path }) {
             <button className={path === '/gallery' ? 'active' : ''} aria-label="相册" onClick={() => navigate('/gallery')}>
               <Camera size={17} /><span>相册</span>
             </button>
+            <a href="https://github.com/sssjack" target="_blank" rel="noreferrer" aria-label="GitHub">
+              <Github size={17} /><span>GitHub</span>
+            </a>
             <button aria-label="后台" onClick={() => navigate('/admin')}>
               <Shield size={17} /><span>后台</span>
             </button>
@@ -457,6 +461,9 @@ function YearTimelineExperience({ navigate, compact = false }) {
                 <div className="timeline-detail-kicker">
                   <Calendar size={16} />
                   <span>{activeEvent.dateLabel} / {activeEvent.year}</span>
+                  {activeEvent.featured ? (
+                    <span className="timeline-detail-badge"><Star size={13} />重点节点</span>
+                  ) : null}
                 </div>
                 <h3>{activeEvent.title}</h3>
                 <p>{activeEvent.detail}</p>
@@ -487,13 +494,16 @@ function YearTimelineExperience({ navigate, compact = false }) {
                   {group.events.map((event, eventIndex) => (
                     <button
                       type="button"
-                      className={`timeline-event ${activeEvent?.id === event.id ? 'active' : ''}`}
+                      className={`timeline-event ${activeEvent?.id === event.id ? 'active' : ''} ${event.featured ? 'featured' : ''}`}
                       key={event.id}
                       aria-pressed={activeEvent?.id === event.id}
                       style={{ '--event-index': eventIndex }}
                       onClick={() => setSelectedId(event.id)}
                     >
-                      <span className="timeline-event-date">{event.dateLabel}</span>
+                      <span className="timeline-event-meta">
+                        <span className="timeline-event-date">{event.dateLabel}</span>
+                        {event.featured ? <span className="timeline-event-badge"><Star size={12} />重点</span> : null}
+                      </span>
                       <strong>{event.title}</strong>
                       <small>{event.precision === 'day' ? 'DAY' : 'PHASE'} · {event.articleTitle}</small>
                     </button>

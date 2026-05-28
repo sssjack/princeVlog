@@ -43,6 +43,20 @@ describe('public home visual theme', () => {
     expect(styles).toContain('--display-font');
   });
 
+  it('uses an elegant serif only for the largest home PrinceVlog title', () => {
+    const heroTitleRule = styles.match(/\.public-shell \.hero-title-stage h1 \{[\s\S]*?\n\}/)?.[0] || '';
+    const brandRule = styles.match(/\.brand \{[\s\S]*?\n\}/)?.[0] || '';
+    const adminBrandRule = styles.match(/\.admin-brand \{[\s\S]*?\n\}/)?.[0] || '';
+
+    expect(heroTitleRule).toContain('Cormorant Garamond');
+    expect(heroTitleRule).toContain('Playfair Display');
+    expect(heroTitleRule).toContain('font-weight: 500');
+    expect(heroTitleRule).toContain('letter-spacing: 0.035em');
+    expect(heroTitleRule).toContain('text-shadow:');
+    expect(brandRule).not.toContain('Cormorant Garamond');
+    expect(adminBrandRule).not.toContain('Cormorant Garamond');
+  });
+
   it('refreshes the home hero with poetic motion and data signals', () => {
     expect(mainSource).toContain('hero-signal-row');
     expect(mainSource).toContain('hero-thought-panel');
@@ -67,5 +81,18 @@ describe('public home visual theme', () => {
     expect(mainSource).toContain('aria-label="首页"');
     expect(mainSource).toContain('<Home size={17} /><span>首页</span>');
     expect(styles).toContain('.public-shell .site-header nav button span');
+  });
+
+  it('adds the personal GitHub link after the gallery navigation item', () => {
+    const galleryIndex = mainSource.indexOf("onClick={() => navigate('/gallery')}");
+    const githubIndex = mainSource.indexOf('https://github.com/sssjack');
+    const adminIndex = mainSource.indexOf("onClick={() => navigate('/admin')}");
+
+    expect(galleryIndex).toBeGreaterThan(-1);
+    expect(githubIndex).toBeGreaterThan(galleryIndex);
+    expect(githubIndex).toBeLessThan(adminIndex);
+    expect(mainSource).toContain('target="_blank"');
+    expect(mainSource).toContain('rel="noreferrer"');
+    expect(styles).toContain('.public-shell .site-header nav a');
   });
 });

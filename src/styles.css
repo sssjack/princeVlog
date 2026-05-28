@@ -688,9 +688,31 @@ img {
   transform: translateX(6px);
 }
 
+.timeline-event.featured {
+  border-color: color-mix(in srgb, var(--accent), transparent 20%);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent), transparent 76%), transparent 66%),
+    rgba(255, 255, 255, 0.1);
+}
+
+.timeline-event.featured::before {
+  width: 15px;
+  height: 15px;
+  border-color: var(--accent-light);
+  background: var(--accent);
+}
+
 .timeline-event.active::before {
   border-color: var(--accent-light);
   background: var(--accent);
+}
+
+.timeline-event-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
 }
 
 .timeline-event-date {
@@ -698,6 +720,29 @@ img {
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0;
+}
+
+.timeline-event-badge,
+.timeline-detail-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid color-mix(in srgb, var(--accent), transparent 30%);
+  border-radius: 999px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent), transparent 88%);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.timeline-event-badge {
+  padding: 5px 8px;
+}
+
+.timeline-detail-badge {
+  padding: 6px 9px;
 }
 
 .timeline-event strong {
@@ -4728,10 +4773,14 @@ th {
 .public-shell .hero-title-stage h1 {
   max-width: 980px;
   margin: 22px auto 0;
-  font-family: var(--display-font);
+  font-family: "Cormorant Garamond", "Playfair Display", Didot, "Bodoni 72", "Libre Baskerville", Georgia, serif;
   font-size: 6.8rem;
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.04;
+  letter-spacing: 0.035em;
+  text-shadow:
+    0 16px 38px rgba(15, 23, 42, 0.16),
+    0 2px 10px rgba(255, 255, 255, 0.22);
   text-wrap: balance;
 }
 
@@ -4905,6 +4954,49 @@ th {
   filter: saturate(0.98) contrast(1.02) brightness(0.98);
 }
 
+.public-shell .site-header nav a {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-decoration: none;
+  transition: color 0.25s var(--ease), background 0.25s var(--ease);
+}
+
+.public-shell .site-header nav a span {
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.public-shell .site-header nav a::after {
+  content: "";
+  position: absolute;
+  right: 18px;
+  bottom: 3px;
+  left: 18px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+  transform: scaleX(0);
+  transition: transform 0.3s var(--ease);
+}
+
+.public-shell .site-header nav a:hover {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.public-shell .site-header nav a:hover::after {
+  transform: scaleX(1);
+}
+
 @keyframes hero-rise {
   from {
     opacity: 0;
@@ -4956,6 +5048,16 @@ th {
   .hero-thought-panel p {
     font-size: 1.05rem;
     line-height: 1.75;
+  }
+
+  .public-shell .site-header nav a {
+    justify-content: center;
+    width: 46px;
+    padding: 0;
+  }
+
+  .public-shell .site-header nav a span {
+    display: none;
   }
 
   .hero-primary-panel {

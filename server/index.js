@@ -14,6 +14,7 @@ import { locationForIp, normalizeIp } from './geo.js';
 import { createStore } from './store.js';
 import { createAnnualTimeline } from './timeline.js';
 import { createAnnualTimelineInsightQueue, needsAnnualTimelineInsight } from './timelineInsight.js';
+import { createTimelineTitleQueue, needsTimelineEventTitles } from './timelineTitles.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
@@ -140,6 +141,7 @@ export async function createApp() {
   await store.init();
   const articleReviewer = createArticleReviewQueue({ store });
   const annualTimelineInsightQueue = createAnnualTimelineInsightQueue({ store });
+  const timelineTitleQueue = createTimelineTitleQueue({ store });
   await mkdir(uploadDir, { recursive: true });
   const auth = await buildAuth();
   const upload = createUpload(uploadDir);
@@ -178,10 +180,21 @@ export async function createApp() {
   router.get('/api/public/timeline', asyncHandler(async (_req, res) => {
     const articles = await store.listArticles({});
     const insight = await store.getAnnualTimelineInsight();
+    const timelineTitles = await store.getTimelineEventTitles();
     if (needsAnnualTimelineInsight(articles, insight)) {
       annualTimelineInsightQueue.enqueueInsight();
     }
-    res.json({ timeline: createAnnualTimeline(articles), insight });
+    if (needsTimelineEventTitles(articles, timelineTitles)) {
+      timelineTitleQueue.enqueueTitles();
+    }
+    res.json({
+      timeline: createAnnualTimeline(articles, { titleOverrides: timelineTitles.titles }),
+      insight,
+      timelineTitles: {
+        status: timelineTitles.status,
+        updatedAt: timelineTitles.updatedAt
+      }
+    });
   }));
 
   router.get('/api/public/articles', asyncHandler(async (req, res) => {
@@ -399,6 +412,7 @@ export async function createApp() {
     console.error('article AI review backfill failed', error);
   });
   annualTimelineInsightQueue.enqueueInsight();
+  timelineTitleQueue.enqueueTitles();
 
   return app;
 }
