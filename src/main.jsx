@@ -195,10 +195,17 @@ function PublicLayout({ children, navigate, path }) {
   }, [theme]);
 
   function scrollToAboutMe() {
-    const scroll = () => document.getElementById('about-me')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const scroll = () => {
+      const target = document.getElementById('about-me');
+      const header = document.querySelector('.site-header');
+      if (!target) return;
+      const offset = (header?.offsetHeight || 0) + 24;
+      const top = target.getBoundingClientRect().top + window.scrollY - offset;
+      window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+    };
     if (path !== '/') {
       navigate('/');
-      window.setTimeout(scroll, 120);
+      window.setTimeout(scroll, 160);
       return;
     }
     scroll();

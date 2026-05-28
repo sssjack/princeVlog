@@ -95,6 +95,13 @@ describe('public home visual theme', () => {
     expect(mainSource).not.toContain('aria-label="GitHub"');
   });
 
+  it('offsets the About me jump by the sticky mobile header height', () => {
+    expect(mainSource).toContain("document.querySelector('.site-header')");
+    expect(mainSource).toContain('header?.offsetHeight');
+    expect(mainSource).toContain('window.scrollTo({ top');
+    expect(mainSource).not.toContain("document.getElementById('about-me')?.scrollIntoView");
+  });
+
   it('adds a playful sunny About me section with avatar and social links', () => {
     expect(mainSource).toContain('aboutAvatarUrl');
     expect(mainSource).toContain('id="about-me"');
