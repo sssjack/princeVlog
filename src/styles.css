@@ -4088,6 +4088,10 @@ th {
     flex-direction: column;
   }
 
+  .public-shell .brand {
+    align-self: flex-start;
+  }
+
   .public-shell .site-header nav {
     width: 100%;
   }
@@ -4103,12 +4107,26 @@ th {
   }
 
   .style-switcher {
-    align-self: flex-start;
+    position: absolute;
+    top: 14px;
+    right: max(20px, 5vw);
+  }
+
+  .style-trigger {
+    width: 46px;
+    height: 46px;
+    padding: 0;
+    gap: 0;
+  }
+
+  .style-trigger span,
+  .style-current {
+    display: none;
   }
 
   .style-menu {
-    right: auto;
-    left: 0;
+    right: 0;
+    left: auto;
   }
 
   .public-shell .hero-section {

@@ -83,6 +83,15 @@ describe('public home visual theme', () => {
     expect(styles).toContain('.public-shell .site-header nav button span');
   });
 
+  it('pins the mobile style switcher to the top-right as an icon button', () => {
+    expect(styles).toContain('.public-shell .brand {\n    align-self: flex-start;');
+    expect(styles).toContain('.style-switcher {\n    position: absolute;');
+    expect(styles).toContain('right: max(20px, 5vw);');
+    expect(styles).toContain('.style-trigger {\n    width: 46px;');
+    expect(styles).toContain('.style-trigger span,\n  .style-current {\n    display: none;');
+    expect(styles).toContain('.style-menu {\n    right: 0;\n    left: auto;');
+  });
+
   it('replaces the GitHub nav item with an About me jump link', () => {
     const galleryIndex = mainSource.indexOf("onClick={() => navigate('/gallery')}");
     const aboutIndex = mainSource.indexOf('aria-label="About me"');
