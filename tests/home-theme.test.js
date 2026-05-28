@@ -83,16 +83,29 @@ describe('public home visual theme', () => {
     expect(styles).toContain('.public-shell .site-header nav button span');
   });
 
-  it('adds the personal GitHub link after the gallery navigation item', () => {
+  it('replaces the GitHub nav item with an About me jump link', () => {
     const galleryIndex = mainSource.indexOf("onClick={() => navigate('/gallery')}");
-    const githubIndex = mainSource.indexOf('https://github.com/sssjack');
+    const aboutIndex = mainSource.indexOf('aria-label="About me"');
     const adminIndex = mainSource.indexOf("onClick={() => navigate('/admin')}");
 
     expect(galleryIndex).toBeGreaterThan(-1);
-    expect(githubIndex).toBeGreaterThan(galleryIndex);
-    expect(githubIndex).toBeLessThan(adminIndex);
+    expect(aboutIndex).toBeGreaterThan(galleryIndex);
+    expect(aboutIndex).toBeLessThan(adminIndex);
+    expect(mainSource).toContain('<UserRound size={17} /><span>About me</span>');
+    expect(mainSource).not.toContain('aria-label="GitHub"');
+  });
+
+  it('adds a playful sunny About me section with avatar and social links', () => {
+    expect(mainSource).toContain('aboutAvatarUrl');
+    expect(mainSource).toContain('id="about-me"');
+    expect(mainSource).toContain('阳光小简历');
+    expect(mainSource).toContain('人生进度条偶尔卡顿，但我会笑着继续加载');
+    expect(mainSource).toContain('https://github.com/sssjack');
+    expect(mainSource).toContain('https://www.zhihu.com/people/68505a0583a497cb4f7dc67fe37869d7');
     expect(mainSource).toContain('target="_blank"');
     expect(mainSource).toContain('rel="noreferrer"');
-    expect(styles).toContain('.public-shell .site-header nav a');
+    expect(styles).toContain('.about-me-section');
+    expect(styles).toContain('.about-avatar-card');
+    expect(styles).toContain('.about-social-links');
   });
 });

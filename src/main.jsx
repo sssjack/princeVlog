@@ -35,6 +35,7 @@ import {
   X
 } from 'lucide-react';
 import './styles.css';
+import aboutAvatarUrl from './assets/about-avatar.jpg';
 
 const BASE_PATH = (import.meta.env.BASE_URL || '/princevlog/').replace(/\/$/, '');
 const API_BASE = `${BASE_PATH}/api`;
@@ -113,7 +114,7 @@ function IconButton({ icon: Icon, children, className = '', ...props }) {
   );
 }
 
-function FadeIn({ children, className = '', delay = 0, tag: Tag = 'div' }) {
+function FadeIn({ children, className = '', delay = 0, tag: Tag = 'div', ...props }) {
   const ref = useCallback((node) => {
     if (!node) return;
     if (delay) node.style.transitionDelay = `${delay}ms`;
@@ -129,7 +130,7 @@ function FadeIn({ children, className = '', delay = 0, tag: Tag = 'div' }) {
     observer.observe(node);
   }, [delay]);
 
-  return <Tag ref={ref} className={`fade-in ${className}`}>{children}</Tag>;
+  return <Tag ref={ref} className={`fade-in ${className}`} {...props}>{children}</Tag>;
 }
 
 function Footer() {
@@ -193,6 +194,16 @@ function PublicLayout({ children, navigate, path }) {
     }
   }, [theme]);
 
+  function scrollToAboutMe() {
+    const scroll = () => document.getElementById('about-me')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (path !== '/') {
+      navigate('/');
+      window.setTimeout(scroll, 120);
+      return;
+    }
+    scroll();
+  }
+
   return (
     <div className="public-shell" data-theme={theme}>
       <header className="site-header">
@@ -214,9 +225,9 @@ function PublicLayout({ children, navigate, path }) {
             <button className={path === '/gallery' ? 'active' : ''} aria-label="相册" onClick={() => navigate('/gallery')}>
               <Camera size={17} /><span>相册</span>
             </button>
-            <a href="https://github.com/sssjack" target="_blank" rel="noreferrer" aria-label="GitHub">
-              <Github size={17} /><span>GitHub</span>
-            </a>
+            <button aria-label="About me" onClick={scrollToAboutMe}>
+              <UserRound size={17} /><span>About me</span>
+            </button>
             <button aria-label="后台" onClick={() => navigate('/admin')}>
               <Shield size={17} /><span>后台</span>
             </button>
@@ -335,6 +346,40 @@ function HomePage({ navigate }) {
           </aside>
         </div>
       </section>
+
+      <FadeIn tag="section" className="about-me-section" id="about-me">
+        <div className="about-avatar-card">
+          <img src={aboutAvatarUrl} alt="PrinceVlog 个人头像" />
+          <span>正在加载阳光能量</span>
+        </div>
+        <div className="about-copy">
+          <span className="about-kicker"><Sparkles size={16} />About me</span>
+          <h2>阳光小简历</h2>
+          <p>
+            嗨，我是 Prince。一个一边赶路、一边把生活写进年终总结的人。
+            这些年我在考试、工作、城市迁移、爬山和自我修复之间来回闯关：
+            有时认真到冒烟，有时快乐到起飞，但总体方向一直是向前、向亮、向更大的世界。
+          </p>
+          <p>
+            我喜欢把生活拆成文章、照片和时间轴，也喜欢在复盘里给自己递一杯热乎乎的鼓励。
+            人生进度条偶尔卡顿，但我会笑着继续加载；如果今天还没变厉害，那就先变可爱一点。
+          </p>
+          <div className="about-tags" aria-label="我的关键词">
+            <span>年终总结收藏家</span>
+            <span>考试副本挑战中</span>
+            <span>会爬山也会重启</span>
+            <span>太阳能补电型选手</span>
+          </div>
+          <div className="about-social-links" aria-label="社交帐号">
+            <a href="https://github.com/sssjack" target="_blank" rel="noreferrer">
+              <Github size={18} /><span>GitHub</span>
+            </a>
+            <a href="https://www.zhihu.com/people/68505a0583a497cb4f7dc67fe37869d7" target="_blank" rel="noreferrer">
+              <MessageCircle size={18} /><span>知乎</span>
+            </a>
+          </div>
+        </div>
+      </FadeIn>
 
       <FadeIn tag="section" className="content-band">
         <div className="section-head">

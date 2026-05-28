@@ -4877,6 +4877,160 @@ th {
   margin-top: 18px;
 }
 
+.about-me-section {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(220px, 0.82fr) minmax(0, 1.18fr);
+  align-items: center;
+  gap: clamp(28px, 5vw, 72px);
+  width: min(1120px, calc(100% - 64px));
+  scroll-margin-top: 104px;
+  margin: 0 auto;
+  padding: clamp(48px, 8vw, 92px) 0 clamp(28px, 5vw, 58px);
+}
+
+.about-me-section::before {
+  content: "";
+  position: absolute;
+  inset: 18% auto auto 8%;
+  width: 220px;
+  height: 220px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent), transparent 82%);
+  filter: blur(34px);
+  opacity: 0.72;
+  pointer-events: none;
+}
+
+.about-avatar-card,
+.about-copy {
+  position: relative;
+  z-index: 1;
+}
+
+.about-avatar-card {
+  justify-self: center;
+  display: grid;
+  gap: 14px;
+  width: min(310px, 100%);
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--accent), transparent 58%);
+  border-radius: 8px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.04)),
+    color-mix(in srgb, var(--panel), transparent 16%);
+  box-shadow: var(--shadow-md);
+  transform: rotate(-1.2deg);
+}
+
+.about-avatar-card img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 7px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+
+.about-avatar-card span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.about-copy {
+  display: grid;
+  gap: 18px;
+  padding: clamp(24px, 4vw, 42px);
+  border: 1px solid color-mix(in srgb, var(--accent), transparent 62%);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent), transparent 88%), transparent 50%),
+    color-mix(in srgb, var(--panel), transparent 8%);
+  box-shadow: var(--shadow-sm);
+}
+
+.about-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.about-copy h2 {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--display-font);
+  font-size: clamp(38px, 5.8vw, 72px);
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: 0;
+}
+
+.about-copy p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.9;
+}
+
+.about-tags,
+.about-social-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.about-tags span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid color-mix(in srgb, var(--accent), transparent 62%);
+  border-radius: 999px;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--accent), transparent 90%);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.about-social-links {
+  margin-top: 4px;
+}
+
+.about-social-links a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid color-mix(in srgb, var(--accent), transparent 48%);
+  border-radius: 999px;
+  color: var(--button-ink, var(--ink));
+  background: color-mix(in srgb, var(--accent), transparent 84%);
+  font-size: 14px;
+  font-weight: 800;
+  text-decoration: none;
+  transition:
+    transform 220ms var(--ease),
+    border-color 220ms var(--ease),
+    background 220ms var(--ease);
+}
+
+.about-social-links a:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--accent), transparent 18%);
+  background: color-mix(in srgb, var(--accent), transparent 74%);
+}
+
 .public-shell .section-head h2,
 .public-shell .page-title h1,
 .public-shell .article-detail h1 {
@@ -5070,6 +5224,25 @@ th {
 
   .hero-primary-panel .hero-signal-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .about-me-section {
+    grid-template-columns: 1fr;
+    width: 88vw;
+    padding-top: 42px;
+  }
+
+  .about-avatar-card {
+    width: min(260px, 100%);
+    transform: rotate(0);
+  }
+
+  .about-copy {
+    padding: 24px;
+  }
+
+  .about-social-links a {
+    flex: 1 1 140px;
   }
 
   .motto-fade-stack {
