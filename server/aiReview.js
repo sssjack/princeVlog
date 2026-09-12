@@ -1,3 +1,4 @@
+import { isPublic } from './content.js';
 import crypto from 'node:crypto';
 import http from 'node:http';
 import https from 'node:https';
@@ -176,7 +177,7 @@ export function createArticleReviewQueue({
     active.add(articleId);
     try {
       const article = await store.getArticle(articleId, { includeDrafts: true });
-      if (!needsArticleAiReview(article)) return false;
+      if (!isPublic(article) || !needsArticleAiReview(article)) return false;
 
       await store.setArticleAiReview(article.id, {
         status: 'pending',
@@ -221,7 +222,7 @@ export function createArticleReviewQueue({
     const articles = await store.listArticles({ includeDrafts: true });
     let queued = 0;
     for (const article of articles) {
-      if (needsArticleAiReview(article) && enqueueArticle(article)) {
+      if (isPublic(article) && needsArticleAiReview(article) && enqueueArticle(article)) {
         queued += 1;
       }
     }

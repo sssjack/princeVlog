@@ -2,6 +2,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { locationForIp } from './geo.js';
+import { CONTENT_KINDS, normalizeEntry, isPublic, articleYear } from './content.js';
 
 const MAX_VISITS = 10000;
 
@@ -138,6 +139,8 @@ function pendingAiReview(previous, timestamp = now()) {
 function normalizeArticle(article) {
   return {
     ...article,
+    visibility: article.visibility === 'private' ? 'private' : 'public',
+    year: articleYear(article),
     aiReview: normalizeAiReview(article?.aiReview, article?.updatedAt || now())
   };
 }
@@ -245,6 +248,9 @@ function normalizeData(data) {
     ...base,
     ...data,
     settings: { ...base.settings, ...(data?.settings || {}) },
+    ...Object.fromEntries(CONTENT_KINDS.map(k => [k, Array.isArray(data?.[k]) ? data[k] : []])),
+    revisions: data?.revisions || {},
+    drafts: data?.drafts || {},
     categories: Array.isArray(data?.categories) ? data.categories : [],
     articles: Array.isArray(data?.articles) ? data.articles.map(normalizeArticle) : [],
     albums: Array.isArray(data?.albums) ? data.albums : [],
@@ -272,12 +278,13 @@ export function createStore(dbPath, { seedDemo = false } = {}) {
   }
 
   function enqueueWrite(fn) {
-    writeChain = writeChain.then(async () => {
+    const operation = writeChain.then(async () => {
       const result = await fn();
       await persist();
       return result;
     });
-    return writeChain;
+    writeChain = operation.catch(() => {});
+    return operation;
   }
 
   function categoryFor(article) {
@@ -289,7 +296,8 @@ export function createStore(dbPath, { seedDemo = false } = {}) {
     return {
       ...article,
       categoryName: category?.name || '未分类',
-      categorySlug: category?.slug || ''
+      categorySlug: category?.slug || '',
+      year: articleYear(article)
     };
   }
 
@@ -347,10 +355,70 @@ export function createStore(dbPath, { seedDemo = false } = {}) {
         data = normalizeData(JSON.parse(raw));
       } catch (error) {
         if (error.code !== 'ENOENT') throw error;
-        data = defaultData(seedDemo);
+        data = normalizeData(defaultData(seedDemo));
         await persist();
       }
       return api;
+    },
+
+    async listEntries(kind, { includePrivate = false } = {}) {
+      if (!CONTENT_KINDS.includes(kind)) throw new Error('未知栏目');
+      const articles = data.articles.filter(a => a.status === 'published' && isPublic(a));
+      const albums = data.albums.filter(isPublic);
+      return data[kind].filter(entry => includePrivate || isPublic(entry)).map(entry => includePrivate ? entry : ({
+        ...entry,
+        articleIds: entry.articleIds.filter(id => articles.some(a => a.id === id)),
+        albumIds: entry.albumIds.filter(id => albums.some(a => a.id === id)),
+        photoIds: entry.photoIds.filter(id => data.photos.some(p => p.id === id && albums.some(a => a.id === p.albumId)))
+      })).sort((a, b) => b.date.localeCompare(a.date));
+    },
+
+    async saveEntry(kind, entryId, input) {
+      if (!CONTENT_KINDS.includes(kind)) throw new Error('未知栏目');
+      return enqueueWrite(async () => {
+        const previous = entryId ? data[kind].find(entry => entry.id === entryId) : null;
+        if (entryId && !previous) throw new Error('记录不存在');
+        const fields = normalizeEntry(input, previous || {});
+        if (kind === 'moments' && !fields.content && !fields.imageUrl) throw new Error('请写一句话或添加一张照片');
+        if (kind !== 'moments' && !fields.title) throw new Error('请填写标题');
+        if (kind === 'years' && data.years.some(entry => entry.year === fields.year && entry.id !== entryId)) throw new Error('该年份已有档案，请编辑现有记录');
+        const entry = { ...fields, id: previous?.id || id(), createdAt: previous?.createdAt || now(), updatedAt: now() };
+        data[kind] = previous ? data[kind].map(item => item.id === entryId ? entry : item) : [...data[kind], entry];
+        return entry;
+      });
+    },
+
+    async deleteEntry(kind, entryId) {
+      if (!CONTENT_KINDS.includes(kind)) throw new Error('未知栏目');
+      return enqueueWrite(async () => {
+        data[kind] = data[kind].filter(entry => entry.id !== entryId);
+        return { ok: true };
+      });
+    },
+
+    async getRevisions(articleId) { return data.revisions[articleId] || []; },
+    async getDraft(key) { return Object.prototype.hasOwnProperty.call(data.drafts, key) ? data.drafts[key] : null; },
+    async saveDraft(key, form) {
+      if (!/^(article|moments|years|projects|trips)-[a-zA-Z0-9-]+$/.test(key)) throw new Error('无效工作副本标识');
+      return enqueueWrite(async () => {
+        if (form === null) delete data.drafts[key];
+        else data.drafts[key] = { form, updatedAt: now() };
+        return data.drafts[key] || null;
+      });
+    },
+    async exportData() { await writeChain; return JSON.parse(JSON.stringify(data)); },
+
+    async isPublicUpload(filename) {
+      const source = [
+        ...data.articles.filter(a => a.status === 'published' && isPublic(a)),
+        ...data.albums.filter(isPublic),
+        ...data.photos.filter(p => data.albums.some(a => a.id === p.albumId && isPublic(a))),
+        ...CONTENT_KINDS.flatMap(k => data[k].filter(isPublic))
+      ];
+      return source.some(item => ['content', 'coverUrl', 'imageUrl'].some(key => {
+        const urls = String(item[key] || '').match(/(?:https?:\/\/[^\s"'<>()[\]]+)?\/[^\s"'<>()[\]]*uploads\/[^\s"'<>()[\]]+/g) || [];
+        return urls.some(url => { try { return decodeURIComponent(new URL(url, 'http://local').pathname.split('/uploads/').pop()) === filename; } catch { return false; } });
+      }));
     },
 
     async getSettings() {
@@ -417,10 +485,10 @@ export function createStore(dbPath, { seedDemo = false } = {}) {
       });
     },
 
-    async listArticles({ categorySlug, recommended, includeDrafts = false, search } = {}) {
+    async listArticles({ categorySlug, recommended, includeDrafts = false, search, year } = {}) {
       const normalizedSearch = cleanText(search).toLowerCase();
       return data.articles
-        .filter((article) => includeDrafts || article.status === 'published')
+        .filter((article) => includeDrafts || (article.status === 'published' && isPublic(article)))
         .filter((article) => {
           if (!categorySlug) return true;
           return categoryFor(article)?.slug === categorySlug;
@@ -428,15 +496,16 @@ export function createStore(dbPath, { seedDemo = false } = {}) {
         .filter((article) => recommended === undefined || article.recommended === toBool(recommended))
         .filter((article) => {
           if (!normalizedSearch) return true;
-          return `${article.title} ${article.subtitle} ${article.excerpt}`.toLowerCase().includes(normalizedSearch);
+          return `${article.title} ${article.subtitle} ${article.excerpt} ${article.content}`.toLowerCase().includes(normalizedSearch);
         })
+        .filter(article => !year || articleYear(article) === String(year))
         .map(projectArticle)
         .sort(compareArticles);
     },
 
     async getArticle(identifier, { includeDrafts = false } = {}) {
       const article = data.articles.find((item) => item.id === identifier || item.slug === identifier);
-      if (!article || (!includeDrafts && article.status !== 'published')) return null;
+      if (!article || (!includeDrafts && (article.status !== 'published' || !isPublic(article)))) return null;
       return projectArticle(article);
     },
 
@@ -454,6 +523,8 @@ export function createStore(dbPath, { seedDemo = false } = {}) {
           excerpt: cleanText(input.excerpt),
           recommended: toBool(input.recommended),
           status: input.status === 'draft' ? 'draft' : 'published',
+          visibility: input.visibility === 'public' ? 'public' : 'private',
+          year: input.year || '',
           viewCount: 0,
           aiReview: pendingAiReview(null, timestamp),
           createdAt: timestamp,
@@ -480,9 +551,13 @@ export function createStore(dbPath, { seedDemo = false } = {}) {
           content: input.content === undefined ? article.content : String(input.content),
           excerpt: cleanText(input.excerpt, article.excerpt),
           recommended: input.recommended === undefined ? article.recommended : toBool(input.recommended),
-          status: input.status === 'draft' ? 'draft' : 'published'
+          status: input.status === 'draft' ? 'draft' : 'published',
+          visibility: input.visibility === undefined ? article.visibility : input.visibility === 'public' ? 'public' : 'private',
+          year: input.year ?? article.year ?? ''
         };
-        const reviewSourceChanged = ['title', 'subtitle', 'content', 'excerpt', 'status']
+        const history = data.revisions[articleId] || [];
+        data.revisions[articleId] = [{ ...JSON.parse(JSON.stringify(article)), revisionId: id(), savedAt: now() }, ...history].slice(0, 50);
+        const reviewSourceChanged = ['title', 'subtitle', 'content', 'excerpt', 'status', 'visibility']
           .some((key) => article[key] !== nextArticle[key]);
         const timestamp = now();
         Object.assign(article, {
@@ -591,6 +666,7 @@ export function createStore(dbPath, { seedDemo = false } = {}) {
           folder: makeSlug(input.folder || input.title),
           description: cleanText(input.description),
           coverUrl: cleanText(input.coverUrl),
+          visibility: input.visibility === 'public' ? 'public' : 'private',
           createdAt: timestamp,
           updatedAt: timestamp
         };
@@ -608,6 +684,7 @@ export function createStore(dbPath, { seedDemo = false } = {}) {
           folder: makeSlug(input.folder || album.folder),
           description: cleanText(input.description, album.description),
           coverUrl: cleanText(input.coverUrl, album.coverUrl),
+          visibility: input.visibility === undefined ? album.visibility : input.visibility === 'public' ? 'public' : 'private',
           updatedAt: now()
         });
         return album;
@@ -708,10 +785,12 @@ export function createStore(dbPath, { seedDemo = false } = {}) {
       });
     },
 
-    async listAlbums({ mode = 'folder' } = {}) {
+    async listAlbums({ mode = 'folder', includePrivate = false } = {}) {
+      const albums = data.albums.filter(album => includePrivate || isPublic(album));
+      const photos = data.photos.filter(photo => albums.some(album => album.id === photo.albumId));
       if (mode === 'date') {
         const grouped = new Map();
-        for (const photo of data.photos) {
+        for (const photo of photos) {
           const key = dateOnly(photo.shotAt || photo.createdAt);
           grouped.set(key, [...(grouped.get(key) || []), photo]);
         }
@@ -720,10 +799,10 @@ export function createStore(dbPath, { seedDemo = false } = {}) {
           .sort((a, b) => new Date(b.date) - new Date(a.date));
       }
 
-      return data.albums
+      return albums
         .map((album) => ({
           ...album,
-          photos: data.photos
+          photos: photos
             .filter((photo) => photo.albumId === album.id)
             .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
         }))

@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import './styles.css';
 import './public.css';
+import { discardWorkingCopy, HomeExperience, SearchArticles, GalleryExperience, LibraryPage, Cover, ProjectsPreview, ReadingTools, RelatedReading, SiteLink, AdminLibrary, BackupPanel, DraftKeeper, RevisionHistory, ArticleOptions, VisibilitySelect } from './features.jsx';
 import aboutAvatarUrl from './assets/about-avatar.jpg';
 
 const BASE_PATH = (import.meta.env.BASE_URL || '/princevlog/').replace(/\/$/, '');
@@ -210,6 +211,7 @@ function Footer() {
           <span>PrinceVlog</span>
         </div>
         <p>用文字和照片记录生活中的灵感与感动</p>
+        <nav className="footer-links" aria-label="更多内容"><SiteLink to="/moments">此刻</SiteLink><SiteLink to="/projects">作品</SiteLink><SiteLink to="/trips">旅行</SiteLink><SiteLink to="/admin">后台管理</SiteLink></nav>
         <small>&copy; {new Date().getFullYear()} PrinceVlog</small>
       </div>
     </footer>
@@ -243,11 +245,12 @@ function Shell({ route, navigate }) {
   return (
     <PublicLayout navigate={navigate} path={path}>
       {path === '/' && <HomePage navigate={navigate} />}
-      {path === '/articles' && <ArticleListPage navigate={navigate} />}
+      {path === '/articles' && <SearchArticles key={route} />}
       {path === '/timeline' && <TimelinePage navigate={navigate} />}
-      {path.startsWith('/article/') && <ArticleDetailPage identifier={decodeURIComponent(path.replace('/article/', ''))} />}
-      {path === '/gallery' && <GalleryPage />}
+      {path.startsWith('/article/') && <ArticleDetailPage key={path} identifier={decodeURIComponent(path.replace('/article/', ''))} />}
+      {path === '/gallery' && <GalleryExperience key={route} />}
       {path === '/about' && <AboutPage />}
+      {(['/moments', '/years', '/projects', '/trips'].includes(path) || path.startsWith('/year/') || path.startsWith('/trip/')) && <LibraryPage key={path} path={path} Markdown={Markdown} />}
     </PublicLayout>
   );
 }
@@ -278,8 +281,8 @@ function PublicLayout({ children, navigate, path }) {
             <button className={path === '/articles' || path.startsWith('/article/') ? 'active' : ''} aria-label="文章" onClick={() => navigate('/articles')}>
               <FileText size={17} /><span>文章</span>
             </button>
-            <button className={path === '/timeline' ? 'active' : ''} aria-label="时间轴" onClick={() => navigate('/timeline')}>
-              <Clock3 size={17} /><span>时间轴</span>
+            <button className={path === '/timeline' || path === '/years' || path.startsWith('/year/') ? 'active' : ''} aria-label="年度档案" onClick={() => navigate('/years')}>
+              <Clock3 size={17} /><span>年度</span>
             </button>
             <button className={path === '/gallery' ? 'active' : ''} aria-label="相册" onClick={() => navigate('/gallery')}>
               <Camera size={17} /><span>相册</span>
@@ -287,9 +290,7 @@ function PublicLayout({ children, navigate, path }) {
             <button className={path === '/about' ? 'active' : ''} aria-label="关于我" onClick={() => navigate('/about')}>
               <UserRound size={17} /><span>关于我</span>
             </button>
-            <button aria-label="后台" onClick={() => navigate('/admin')}>
-              <Shield size={17} /><span>后台</span>
-            </button>
+
           </nav>
           <StyleSwitcher theme={theme} onChange={setTheme} />
         </div>
@@ -369,6 +370,7 @@ function AboutPage() {
   return (
     <div className="about-page-shell">
       <AboutMeSection />
+      <ProjectsPreview />
     </div>
   );
 }
@@ -412,145 +414,17 @@ function AboutMeSection() {
 }
 
 function HomePage({ navigate }) {
-  const { loading, error, data } = usePageData(() => api('/public/bootstrap'), []);
-  const settings = data?.settings || {};
-  const recommended = data?.recommendedArticles || [];
-  const latest = data?.latestArticles || [];
-  const categories = data?.categories || [];
-  const albums = data?.albums || [];
-  const mottoes = settings.mottoes || [];
-  const heroThought = mottoes[0] || '把时间交给热爱，答案会在静处慢慢长出来。';
-  const heroSignals = [
-    { label: '推荐', value: recommended.length },
-    { label: '最新', value: latest.length },
-    { label: '分类', value: categories.length },
-    { label: '相簿', value: albums.length }
-  ];
+  return <HomeExperience>
+    <details className="home-extra"><summary>问问文章里的我</summary><ProfileAiChat navigate={navigate} /></details>
+    <details className="home-extra"><summary>留一句话给我</summary><HomeMessages /></details>
+  </HomeExperience>;
+}
 
-  function scrollToProfileChat() {
-    document.getElementById('profile-chat')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-
-  if (loading) return <Loading label="正在加载 PrinceVlog" />;
+function HomeMessages() {
+  const { data, loading, error } = usePageData(() => api('/public/messages'), []);
+  if (loading) return <Loading label="正在读取留言" />;
   if (error) return <ErrorView message={error} />;
-
-  return (
-    <div className="home">
-      <section className="hero-section">
-        <div className="hero-content">
-          <div className="hero-intro">
-          <div className="hero-title-stage">
-            <div className="eyebrow"><span className="hello-dot" /> A LITTLE SPACE FOR LIFE</div>
-            <h1>{settings.siteTitle || 'PrinceVlog'}</h1>
-            <h2>把日子过成，<br /><em>喜欢的样子。</em><Sun className="hero-sun" aria-hidden="true" /></h2>
-            <p>{settings.heroSubtitle || '记录文字、照片和人生路上的灵感。'}</p>
-          </div>
-          <div className="hero-primary-panel" aria-label="首页主要功能">
-            <div className="hero-actions">
-              <IconButton icon={ArrowUpRight} onClick={() => navigate('/articles')}>开始阅读</IconButton>
-              <IconButton icon={Camera} className="ghost" onClick={() => navigate('/gallery')}>浏览相册</IconButton>
-              <IconButton icon={MessageCircle} className="ghost" onClick={scrollToProfileChat}>问问 AI</IconButton>
-            </div>
-            <div className="hero-signal-row" aria-label="首页内容概览">
-              {heroSignals.map((item) => (
-                <span key={item.label}>
-                  <strong>{item.value}</strong>
-                  <small>{item.label}</small>
-                </span>
-              ))}
-            </div>
-          </div>
-          </div>
-          <aside
-            className="hero-thought-panel"
-            aria-label="今日手记"
-          >
-            <div className="note-topline"><span>THE DAILY NOTE</span><Sun size={22} /></div>
-            <span className="note-quote" aria-hidden="true">“</span>
-            <p>{heroThought}</p>
-            <div className="note-signature"><span>慢慢来，也没关系。</span><small>{settings.ownerName || 'Prince'}</small></div>
-            <div className="note-bottom"><span>文字 · 影像 · 生活</span><Sparkles size={18} /></div>
-          </aside>
-        </div>
-        <div className="hero-footnote"><span>收集生活里的小小闪光</span><span>SCROLL TO EXPLORE ↓</span></div>
-      </section>
-
-      <FadeIn tag="section" className="content-band">
-        <div className="section-head">
-          <span>Featured</span>
-          <h2>推荐文章</h2>
-          <p>有些瞬间，值得多停留一会儿。</p>
-        </div>
-        <div className="article-grid">
-          {recommended.map((article, i) => (
-            <FadeIn key={article.id} delay={i * 100}>
-              <ArticleCard article={article} navigate={navigate} featured />
-            </FadeIn>
-          ))}
-          {recommended.length === 0 ? <EmptyState text="后台设置推荐文章后会显示在这里。" /> : null}
-        </div>
-      </FadeIn>
-
-      <ProfileAiChat navigate={navigate} />
-
-      <FadeIn tag="section" className="split-band">
-        <div>
-          <div className="section-head compact">
-            <span>Categories</span>
-            <h2>文章分类</h2>
-          </div>
-          <div className="category-list">
-            {categories.map((category) => (
-              <button key={category.id} onClick={() => navigate(`/articles?category=${encodeURIComponent(category.slug)}`)}>
-                <Layers size={18} />
-                <strong>{category.name}</strong>
-                <small>{category.description || category.slug}</small>
-              </button>
-            ))}
-          </div>
-        </div>
-        <div>
-          <div className="section-head compact">
-            <span>Latest</span>
-            <h2>最新文章</h2>
-          </div>
-          <div className="latest-list">
-            {latest.slice(0, 5).map((article) => (
-              <button key={article.id} onClick={() => navigate(`/article/${article.slug}`)}>
-                <span>{formatDate(article.updatedAt)}</span>
-                <strong>{article.title}</strong>
-                <small>{article.categoryName}</small>
-              </button>
-            ))}
-          </div>
-        </div>
-      </FadeIn>
-
-      <FadeIn tag="section" className="content-band timeline-band">
-        <YearTimelineExperience navigate={navigate} compact />
-      </FadeIn>
-
-      <FadeIn tag="section" className="content-band">
-        <div className="section-head">
-          <span>Gallery</span>
-          <h2>生活切片</h2>
-          <p>一些走过的地方，一些想留住的瞬间。</p>
-        </div>
-        <div className="album-preview">
-          {albums.map((album) => (
-            <button key={album.id} onClick={() => navigate('/gallery')}>
-              <img src={album.coverUrl || album.photos?.[0]?.imageUrl} alt={album.title} />
-              <span>{album.title}</span>
-            </button>
-          ))}
-        </div>
-      </FadeIn>
-
-      <FadeIn>
-        <MessageBoard initialMessages={data?.messages || []} />
-      </FadeIn>
-    </div>
-  );
+  return <MessageBoard initialMessages={data?.messages || []} />;
 }
 
 function ProfileAiChat({ navigate }) {
@@ -831,8 +705,8 @@ function YearTimelineExperience({ navigate, compact = false }) {
 function AiAnnualInsight({ insight }) {
   const ready = insight?.status === 'ready' && insight.overall;
   const blocks = [
-    { key: 'strengths', title: '优点', items: insight?.strengths || [] },
-    { key: 'weaknesses', title: '缺点', items: insight?.weaknesses || [] },
+    { key: 'strengths', title: '反复出现的优势', items: insight?.strengths || [] },
+    { key: 'weaknesses', title: '值得留意的模式', items: insight?.weaknesses || [] },
     { key: 'suggestions', title: '建议', items: insight?.suggestions || [] }
   ];
 
@@ -846,13 +720,13 @@ function AiAnnualInsight({ insight }) {
       </div>
       {ready ? (
         <>
-          <div className="timeline-insight-copy">
+          <p className="insight-disclaimer">基于已公开年终总结的文字观察，供回看时参考。</p><details className="insight-details"><summary>{insight.overall.slice(0, 110)}… 展开复盘与建议</summary><div className="timeline-insight-copy">
             <article>
               <span>对年终总结的评价</span>
               <p>{insight.overall}</p>
             </article>
             <article>
-              <span>对个人的评价</span>
+              <span>从文字中看到的变化</span>
               <p>{insight.personalEvaluation}</p>
             </article>
           </div>
@@ -865,7 +739,8 @@ function AiAnnualInsight({ insight }) {
                 </ul>
               </article>
             ))}
-          </div>
+          </div></details>
+          <p>依据：上方各年份的原始文章与时间节点，可点击“阅读全文”查看。</p>
         </>
       ) : (
         <div className="timeline-insight-pending">
@@ -881,7 +756,7 @@ function ArticleCard({ article, navigate, featured = false }) {
   return (
     <article className={`article-card ${featured ? 'featured' : ''}`}>
       <button onClick={() => navigate(`/article/${article.slug}`)}>
-        <img src={article.coverUrl || 'https://images.unsplash.com/photo-1518005020951-eccb494ad742?auto=format&fit=crop&w=1200&q=80'} alt={article.title} />
+        <Cover article={article} />
         <div>
           <span className="pill">{article.categoryName}</span>
           <h3>{article.title}</h3>
@@ -945,7 +820,7 @@ function ArticleDetailPage({ identifier }) {
   return (
     <article className="article-detail">
       <header>
-        <img src={article.coverUrl || 'https://images.unsplash.com/photo-1518005020951-eccb494ad742?auto=format&fit=crop&w=1400&q=80'} alt={article.title} />
+        <Cover article={article} detail />
         <div>
           <span className="pill">{article.categoryName}</span>
           <h1>{article.title}</h1>
@@ -953,11 +828,13 @@ function ArticleDetailPage({ identifier }) {
           <small>{formatDate(article.updatedAt)} · {article.viewCount || 0} 次阅读</small>
         </div>
       </header>
+      <ReadingTools article={article} />
       <div className={`article-reading-layout ${headings.length > 0 ? 'has-toc' : 'no-toc'}`}>
         <ArticleTableOfContents headings={headings} />
         <div className="article-reading-main">
           <Markdown content={article.content} headings={headings} />
           <AiReviewBlock review={article.aiReview} />
+          <RelatedReading data={data} />
           <section className="comment-section">
             <h2>评论</h2>
             <form className="comment-form" onSubmit={submitComment}>
@@ -983,6 +860,13 @@ function ArticleDetailPage({ identifier }) {
 
 function ArticleTableOfContents({ headings }) {
   const [activeId, setActiveId] = useState(headings[0]?.id || '');
+
+  useEffect(() => {
+    const media = window.matchMedia('(min-width: 981px)');
+    const update = () => { const node = document.querySelector('.toc-disclosure'); if (node) node.open = media.matches; };
+    update(); media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, [headings]);
 
   useEffect(() => {
     setActiveId(headings[0]?.id || '');
@@ -1045,8 +929,8 @@ function ArticleTableOfContents({ headings }) {
 
   return (
     <aside className="article-toc-shell" aria-label="文章目录">
-      <div className="article-toc">
-        <span className="article-toc-kicker"><FileText size={15} />目录</span>
+      <details className="article-toc toc-disclosure">
+        <summary className="article-toc-kicker"><FileText size={15} />文章目录</summary>
         <nav className="article-toc-list">
           {headings.map((heading) => (
             <button
@@ -1060,7 +944,7 @@ function ArticleTableOfContents({ headings }) {
             </button>
           ))}
         </nav>
-      </div>
+      </details>
     </aside>
   );
 }
@@ -1074,7 +958,7 @@ function AiReviewBlock({ review }) {
         <Sparkles size={18} />
         <span>AI 点评</span>
       </div>
-      <p>{review.content}</p>
+      <details><summary>{review.content.slice(0, 95)}… 展开点评</summary><p>{review.content}</p><p>依据：本页文章，仅供复盘参考。</p></details>
       <small>{review.model || 'AI'} · {formatDate(review.updatedAt)}</small>
     </section>
   );
@@ -1215,6 +1099,8 @@ function AdminApp({ navigate }) {
     { key: 'categories', Icon: Layers, label: '分类管理', hint: '主题入口与归档' },
     { key: 'albums', Icon: Camera, label: '相册管理', hint: '照片、文件夹与时间线' },
     { key: 'messages', Icon: MessageSquare, label: '留言评论', hint: '回复访客互动' },
+    { key: 'library', Icon: Calendar, label: '生活内容', hint: '短记、年度、作品与旅行' },
+    { key: 'backup', Icon: Save, label: '数据备份', hint: '导出文字、历史与照片' },
     { key: 'settings', Icon: Settings, label: '站点设置', hint: '首页文案与格言' }
   ];
   const activeTab = tabs.find((item) => item.key === tab) || tabs[0];
@@ -1277,6 +1163,8 @@ function AdminApp({ navigate }) {
           {tab === 'albums' && <AdminAlbumsPanel />}
           {tab === 'messages' && <AdminEngagement />}
           {tab === 'settings' && <AdminSettings />}
+          {tab === 'library' && <AdminLibrary />}
+          {tab === 'backup' && <BackupPanel />}
         </section>
       </div>
     </div>
@@ -1706,11 +1594,13 @@ function ContentCompositionChart({ rows }) {
 }
 
 function AdminArticlesPanel() {
-  const empty = { title: '', subtitle: '', slug: '', coverUrl: '', categoryId: '', excerpt: '', content: '# 标题\n\n正文内容', recommended: false, status: 'published' };
+  const empty = { title: '', subtitle: '', slug: '', coverUrl: '', categoryId: '', excerpt: '', content: '# 标题\n\n正文内容', recommended: false, status: 'draft', visibility: 'private', year: '' };
   const [form, setForm] = useState(empty);
   const [editingId, setEditingId] = useState('');
   const [modalMode, setModalMode] = useState('');
   const [refresh, setRefresh] = useState(0);
+  const [saveError, setSaveError] = useState('');
+  const [saving, setSaving] = useState(false);
   const { loading, error, data } = usePageData(async () => {
     const [articles, categories] = await Promise.all([api('/admin/articles'), api('/admin/categories')]);
     return { articles: articles.articles, categories: categories.categories };
@@ -1731,19 +1621,22 @@ function AdminArticlesPanel() {
   }
 
   function openEdit(article) {
-    setForm({ ...empty, ...article, categoryId: article.categoryId || '' });
+    setForm({ ...empty, ...article, categoryId: article.categoryId || '', visibility: article.visibility || 'public' });
     setEditingId(article.id);
     setModalMode('edit');
   }
 
   async function save(event) {
     event.preventDefault();
-    await api(editingId ? `/admin/articles/${editingId}` : '/admin/articles', {
+    setSaving(true); setSaveError('');
+    try { await api(editingId ? `/admin/articles/${editingId}` : '/admin/articles', {
       method: editingId ? 'PUT' : 'POST',
       body: form
     });
+    await discardWorkingCopy(`article-${editingId || 'new'}`);
     closeModal();
     setRefresh((value) => value + 1);
+    } catch (error) { setSaveError(error.message); } finally { setSaving(false); }
   }
 
   async function uploadCover(event) {
@@ -1775,7 +1668,7 @@ function AdminArticlesPanel() {
           <div className="admin-row" key={article.id}>
             <div>
               <strong>{article.title}</strong>
-              <span>{article.categoryName} · {article.status} · {article.recommended ? '推荐' : '普通'} · {article.aiReview?.status === 'ready' ? '已点评' : '待点评'}</span>
+              <span>{article.categoryName} · {article.status} · {article.visibility === 'private' ? '仅自己' : '公开'} · {article.recommended ? '推荐' : '普通'} · {article.aiReview?.status === 'ready' ? '已点评' : '待点评'}</span>
             </div>
             <div className="row-actions">
               <button type="button" aria-label="编辑文章" onClick={() => openEdit(article)}><Edit3 size={17} /></button>
@@ -1788,6 +1681,9 @@ function AdminArticlesPanel() {
 
       <AdminModal open={Boolean(modalMode)} title={editingId ? '编辑文章' : '新增文章'} subtitle="标题、Slug、分类和正文可一次维护。" size="wide" onClose={closeModal}>
         <form className="admin-form admin-modal-form" onSubmit={save}>
+          <DraftKeeper key={editingId || 'new'} draftKey={`article-${editingId || 'new'}`} form={form} onRestore={setForm} />
+          <p role="alert">{saveError}</p><ArticleOptions form={form} setForm={setForm} />
+          <RevisionHistory articleId={editingId} onRestore={revision => setForm({ ...empty, ...revision })} />
           <input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} placeholder="标题" required />
           <input value={form.subtitle} onChange={(event) => setForm({ ...form, subtitle: event.target.value })} placeholder="小标题" />
           <input value={form.slug} onChange={(event) => setForm({ ...form, slug: event.target.value })} placeholder="URL Slug" />
@@ -1808,7 +1704,7 @@ function AdminArticlesPanel() {
           <textarea className="markdown-editor" value={form.content} onChange={(event) => setForm({ ...form, content: event.target.value })} />
           <div className="modal-actions">
             <button className="admin-secondary-button" type="button" onClick={closeModal}>取消</button>
-            <IconButton icon={Save}>{editingId ? '保存修改' : '新增文章'}</IconButton>
+            <IconButton icon={Save} disabled={saving}>{saving ? '正在保存…' : editingId ? '保存修改' : '新增文章'}</IconButton>
           </div>
         </form>
       </AdminModal>
@@ -1897,7 +1793,7 @@ function AdminCategoriesPanel() {
 }
 
 function AdminAlbumsPanel() {
-  const emptyAlbum = { title: '', folder: '', description: '', coverUrl: '' };
+  const emptyAlbum = { title: '', folder: '', description: '', coverUrl: '', visibility: 'private' };
   const emptyPhoto = { albumId: '', title: '', caption: '', imageUrl: '', shotAt: new Date().toISOString().slice(0, 10) };
   const [albumForm, setAlbumForm] = useState(emptyAlbum);
   const [photoForm, setPhotoForm] = useState(emptyPhoto);
@@ -1925,7 +1821,7 @@ function AdminAlbumsPanel() {
   }
 
   function openAlbumEdit(album) {
-    setAlbumForm({ ...emptyAlbum, ...album });
+    setAlbumForm({ ...emptyAlbum, ...album, visibility: album.visibility || 'public' });
     setEditingAlbumId(album.id);
     setModalMode('album');
   }
@@ -2059,6 +1955,7 @@ function AdminAlbumsPanel() {
 
       <AdminModal open={modalMode === 'album'} title={editingAlbumId ? '编辑相册' : '新增相册'} subtitle="填写相册名、文件夹标识、描述和封面。" onClose={closeModal}>
         <form className="admin-form admin-modal-form" onSubmit={saveAlbum}>
+          <VisibilitySelect value={albumForm.visibility} onChange={visibility => setAlbumForm({ ...albumForm, visibility })} />
           <input value={albumForm.title} onChange={(event) => setAlbumForm({ ...albumForm, title: event.target.value })} placeholder="相册名" required />
           <input value={albumForm.folder} onChange={(event) => setAlbumForm({ ...albumForm, folder: event.target.value })} placeholder="文件夹标识" />
           <input value={albumForm.description} onChange={(event) => setAlbumForm({ ...albumForm, description: event.target.value })} placeholder="描述" />

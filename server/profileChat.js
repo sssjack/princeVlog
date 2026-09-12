@@ -1,3 +1,4 @@
+import { isPublic } from './content.js';
 import crypto from 'node:crypto';
 import http from 'node:http';
 import https from 'node:https';
@@ -210,6 +211,7 @@ export function buildProfileKnowledgeIndex(articles = [], {
   overlap = DEFAULT_CHUNK_OVERLAP
 } = {}) {
   const published = articles
+    .filter(isPublic)
     .map(publicArticlePayload)
     .filter((article) => article.status !== 'draft')
     .sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));

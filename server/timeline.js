@@ -1,3 +1,4 @@
+import { isPublic } from './content.js';
 const ANNUAL_TITLE_PATTERN = /^这一年--.*?(20\d{2})/;
 const DATE_PATTERN = /(?:(20\d{2}|\d{2})年)?\s*(\d{1,2})月\s*(?:(\d{1,2})[日号]|(月初|上旬|上半月|初|月中|中旬|下旬|下半月|月底|末|份))?/;
 const YEAR_ONLY_PATTERN = /^(20\d{2})\s*年?\s*[，,。：:\s-]+(?=\S)/;
@@ -201,7 +202,7 @@ export function createAnnualTimeline(articles = [], { titleOverrides = {} } = {}
   const groups = new Map();
   for (const article of articles) {
     const year = yearFromTitle(article?.title);
-    if (!year || article.status === 'draft') continue;
+    if (!year || !isPublic(article)) continue;
     const events = extractArticleTimelineEvents(article, { titleOverrides });
     if (events.length === 0) continue;
     groups.set(year, {

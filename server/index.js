@@ -13,6 +13,8 @@ import { loadEnvFile } from './env.js';
 import { locationForIp, normalizeIp } from './geo.js';
 import { answerProfileQuestion } from './profileChat.js';
 import { createStore } from './store.js';
+import { installLibraryRoutes } from './library.js';
+import { articleYear } from './content.js';
 import { createAnnualTimeline } from './timeline.js';
 import { createAnnualTimelineInsightQueue, needsAnnualTimelineInsight } from './timelineInsight.js';
 import { createTimelineTitleQueue, needsTimelineEventTitles } from './timelineTitles.js';
@@ -44,6 +46,8 @@ function toBool(value) {
 function publicArticleSummary(article) {
   return {
     id: article.id,
+    year: articleYear(article),
+    readingMinutes: Math.max(1, Math.ceil(String(article.content || "").length / 450)),
     title: article.title,
     subtitle: article.subtitle,
     slug: article.slug,
@@ -163,6 +167,8 @@ function articlePayload(body) {
     content: String(body.content || ''),
     excerpt: text(body.excerpt),
     recommended: toBool(body.recommended),
+    visibility: body.visibility,
+    year: body.year,
     status: body.status === 'draft' ? 'draft' : 'published'
   };
 }
@@ -201,6 +207,8 @@ export async function createApp() {
   app.use(visitMiddleware(store, basePath));
 
   const router = express.Router();
+  router.use('/api', (_req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); });
+  installLibraryRoutes(router, { store, adminOnly, asyncHandler, uploadDir, summary: publicArticleSummary });
 
   router.get('/api/public/bootstrap', asyncHandler(async (_req, res) => {
     const [settings, categories, recommendedArticles, latestArticles, albums, messages, backgroundPhotos] = await Promise.all([
@@ -215,9 +223,9 @@ export async function createApp() {
 
     res.json({
       settings,
-      categories,
+      categories: categories.filter(category => latestArticles.some(article => article.categoryId === category.id)),
       recommendedArticles: recommendedArticles.slice(0, 6).map(publicArticleSummary),
-      latestArticles: latestArticles.slice(0, 8).map(publicArticleSummary),
+      latestArticles: latestArticles.slice().sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 8).map(publicArticleSummary),
       albums: albums.slice(0, 4),
       messages: messages.slice(0, 8),
       backgroundPhotos
@@ -239,8 +247,8 @@ export async function createApp() {
       timelineTitleQueue.enqueueTitles();
     }
     res.json({
-      timeline: createAnnualTimeline(articles, { titleOverrides: timelineTitles.titles }),
-      insight,
+      timeline: createAnnualTimeline(articles, { titleOverrides: needsTimelineEventTitles(articles, timelineTitles) ? {} : timelineTitles.titles }),
+      insight: needsAnnualTimelineInsight(articles, insight) ? { status: 'pending' } : insight,
       timelineTitles: {
         status: timelineTitles.status,
         updatedAt: timelineTitles.updatedAt
@@ -252,9 +260,11 @@ export async function createApp() {
     const articles = await store.listArticles({
       categorySlug: req.query.category,
       recommended: req.query.recommended,
-      search: req.query.search
+      search: req.query.search,
+      year: req.query.year
     });
-    res.json({ articles: articles.map(publicArticleSummary) });
+    const allArticles = await store.listArticles();
+    res.json({ articles: articles.map(publicArticleSummary), years: [...new Set(allArticles.map(articleYear))].filter(Boolean).sort().reverse(), categories: (await store.listCategories()).filter(category => allArticles.some(article => article.categoryId === category.id)) });
   }));
 
   router.get('/api/public/articles/:identifier', asyncHandler(async (req, res) => {
@@ -265,7 +275,12 @@ export async function createApp() {
     }
     const viewed = await store.incrementArticleView(article.id);
     const comments = await store.listComments({ articleId: article.id });
-    res.json({ article: viewed || article, comments });
+    const articles = await store.listArticles();
+    const index = articles.findIndex(a => a.id === article.id);
+    const trips = (await store.listEntries('trips')).filter(t => t.articleIds.includes(article.id));
+    res.json({ article: viewed || article, comments, trips,
+      previous: index > 0 ? publicArticleSummary(articles[index - 1]) : null,
+      next: index < articles.length - 1 ? publicArticleSummary(articles[index + 1]) : null });
   }));
 
   router.post('/api/public/articles/:identifier/comments', asyncHandler(async (req, res) => {
@@ -366,7 +381,7 @@ export async function createApp() {
   }));
 
   router.get('/api/admin/categories', adminOnly, asyncHandler(async (_req, res) => {
-    res.json({ categories: await store.listCategories() });
+    res.json({ categories: (await store.listCategories()).filter(category => allArticles.some(article => article.categoryId === category.id)) });
   }));
 
   router.post('/api/admin/categories', adminOnly, asyncHandler(async (req, res) => {
@@ -406,7 +421,7 @@ export async function createApp() {
   }));
 
   router.get('/api/admin/albums', adminOnly, asyncHandler(async (req, res) => {
-    res.json({ albums: await store.listAlbums({ mode: req.query.mode === 'date' ? 'date' : 'folder' }) });
+    res.json({ albums: await store.listAlbums({ mode: req.query.mode === 'date' ? 'date' : 'folder', includePrivate: true }) });
   }));
 
   router.post('/api/admin/albums', adminOnly, asyncHandler(async (req, res) => {
@@ -470,7 +485,14 @@ export async function createApp() {
   });
 
   app.use(basePath, router);
-  app.use(`${basePath}/uploads`, express.static(uploadDir, { maxAge: '7d' }));
+  app.use(`${basePath}/uploads`, asyncHandler(async (req, res, next) => {
+    res.setHeader('Cache-Control', 'private, no-store');
+    const filename = decodeURIComponent(req.path).replace(/^\//, '');
+    if (!auth.verifySession(req.cookies?.[COOKIE_NAME]) && !await store.isPublicUpload(filename)) {
+      return res.status(404).end();
+    }
+    next();
+  }), express.static(uploadDir, { cacheControl: false }));
   app.use(`${basePath}/assets`, express.static(path.join(distDir, 'assets'), { maxAge: '1y', immutable: true }));
 
   const sendIndex = (_req, res) => {
@@ -483,6 +505,7 @@ export async function createApp() {
 
   app.use((error, _req, res, _next) => {
     console.error(error);
+    if (res.headersSent) return res.destroy();
     res.status(500).json({ error: error.message || '服务器错误' });
   });
 
@@ -495,8 +518,8 @@ export async function createApp() {
   return app;
 }
 
-const port = Number(process.env.PORT || 4210);
-const app = await createApp();
-app.listen(port, '0.0.0.0', () => {
-  console.log(`PrinceVlog listening on http://127.0.0.1:${port}${normalizeBasePath(process.env.BASE_PATH)}/`);
-});
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const port = Number(process.env.PORT || 4210);
+  const app = await createApp();
+  app.listen(port, '0.0.0.0', () => console.log(`PrinceVlog listening on port ${port}`));
+}

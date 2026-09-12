@@ -1,3 +1,4 @@
+import { isPublic } from './content.js';
 import crypto from 'node:crypto';
 import http from 'node:http';
 import https from 'node:https';
@@ -29,7 +30,7 @@ function truncateText(value, maxLength) {
 
 function annualArticles(articles = []) {
   return articles
-    .filter((article) => article?.status !== 'draft' && /^这一年--.*?20\d{2}/.test(cleanText(article?.title)))
+    .filter((article) => isPublic(article) && /^这一年--.*?20\d{2}/.test(cleanText(article?.title)))
     .sort((a, b) => cleanText(b.title).localeCompare(cleanText(a.title), 'zh-Hans-CN'));
 }
 
