@@ -51,7 +51,7 @@ npm start
 - `http://127.0.0.1:4210/princevlog/`
 - `http://127.0.0.1:4210/princevlog/admin`
 
-如果修改了代码，提交前建议至少跑：
+功能修改应先运行本地相关测试并构建。测试文件仅保留本地，不提交；服务器发布包不包含测试。已有本地测试时可执行：
 
 ```bash
 npm test
@@ -62,8 +62,8 @@ npm run build
 
 ```bash
 git status
-git add .
-git commit -m "docs: update deployment guide"
+git add README.md DEPLOYMENT.md
+git commit -m "update：完善项目与部署说明"
 git push origin main
 ```
 
@@ -106,7 +106,6 @@ cd /opt/princevlog/app
 
 ```bash
 npm ci
-npm test
 npm run build
 ```
 
@@ -254,7 +253,6 @@ curl -X POST http://www.clockwise.asia/princevlog/api/public/profile-chat \
 cd /opt/princevlog/app
 git pull --ff-only origin main
 npm ci
-npm test
 npm run build
 set -a
 . ./.env
