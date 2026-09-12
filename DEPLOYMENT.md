@@ -125,16 +125,16 @@ ADMIN_USER=root
 ADMIN_PASSWORD_HASH='replace-with-scrypt-hash'
 SESSION_SECRET='replace-with-long-random-string'
 COOKIE_SECURE=false
-DEEPSEEK_API_KEY='replace-with-api-key'
-DEEPSEEK_MODEL=deepseek-v4-pro
-DEEPSEEK_API_URL=https://api.deepseek.com/chat/completions
+APIYI_LLM_API_KEY='replace-with-api-key'
+APIYI_LLM_MODEL=gpt-5.6-luna
+APIYI_LLM_API_URL=https://api.apiyi.com/v1/chat/completions
 ```
 
 如果后续启用 HTTPS，可以把 `COOKIE_SECURE` 改为 `true`。
 
-`DEEPSEEK_API_KEY` 用于首页 Ask Prince AI。AI 问答只会把已发布文章、摘要和 AI 复盘检索片段发送给模型；草稿不会进入公开知识库。不要把真实 API Key 写入仓库。
+`APIYI_LLM_API_KEY` 用于首页 Ask Prince AI、文章点评、年度总评及时间轴标题，统一使用 `APIYI_LLM_MODEL`（默认 `gpt-5.6-luna`）。API 地址和密钥参考 PixelForge 的服务端 `APIYI_LLM_*` 配置。已有点评缓存保留原始模型标记，后续生成使用新模型。AI 问答只会把已发布文章、摘要和 AI 复盘检索片段发送给模型；草稿不会进入公开知识库。不要把真实 API Key 写入仓库。
 
-注意：当前项目代码不会自动读取 `.env` 文件，使用 PM2 启动或重启前需要先把 `.env` 导入当前 shell 环境。
+注意：项目启动时自动读取 `.env`，已有进程环境变量优先。使用 PM2 更新配置时，请重新导入 `.env` 并使用 `--update-env` 重启。
 
 生成后台密码哈希的方式：
 
@@ -372,14 +372,14 @@ ls -la /opt/princevlog/data/uploads
 如果问题能命中文章知识，但接口返回模型配置相关错误，检查 PM2 启动环境里是否存在：
 
 ```bash
-pm2 env princevlog | grep DEEPSEEK
+node --input-type=module -e "import { loadEnvFile } from './server/env.js'; import { getAiConfig } from './server/aiConfig.js'; loadEnvFile('.env'); const { apiUrl, model } = getAiConfig(); console.log({ apiUrl, model, configured: true });"
 ```
 
 确认 `.env` 或 PM2 环境中配置了：
 
-- `DEEPSEEK_API_KEY`
-- `DEEPSEEK_MODEL`
-- `DEEPSEEK_API_URL`
+- `APIYI_LLM_API_KEY`
+- `APIYI_LLM_MODEL`
+- `APIYI_LLM_API_URL`
 
 修改后需要重新导入环境变量并重启：
 

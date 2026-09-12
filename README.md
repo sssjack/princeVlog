@@ -16,7 +16,7 @@ PrinceVlog 是一个个人博客与照片相册网站，适合用来记录文章
 
 ## 界面风格
 
-前台偏内容展示，强调沉浸式首屏、文章卡片、分类入口、相册照片墙和留言互动。首页包含大图 Hero、滚动格言、推荐文章、最新文章、分类导航和相册预览。
+前台采用浅色生活手记风格，默认暖白底色与鼠尾草绿点缀，可切换「抹茶奶白」「晴空蓝」「杏桃日光」三种浅色主题。首页以文字介绍和今日手记开场，展示推荐文章、AI 问答、分类导航、时间轴和相册预览；文章详情采用浅色阅读面板。全站背景照片墙及对应的后台设置入口已移除，文章封面、相册与已有图片数据保留。公共页面的新主题样式集中在 `src/public.css`。
 
 后台采用轻量管理系统风格：
 
@@ -67,7 +67,7 @@ PrinceVlog 是一个个人博客与照片相册网站，适合用来记录文章
 - **geoip-lite**：IP 地区识别。
 - **compression / cors**：压缩和跨域支持。
 - **文件型数据存储**：默认使用 `data/data.json`，上传图片保存在 `data/uploads/`。
-- **DeepSeek Chat API**：驱动首页个人知识问答，检索范围只包含已发布文章、摘要和 AI 复盘内容。
+- **GPT-5.6 Luna（API易 Chat Completions）**：驱动首页个人知识问答，检索范围只包含已发布文章、摘要和 AI 复盘内容。
 
 ### 测试与部署
 
@@ -129,14 +129,14 @@ ADMIN_USER=root
 ADMIN_PASSWORD_HASH='replace-with-scrypt-hash'
 SESSION_SECRET='replace-with-long-random-string'
 COOKIE_SECURE=false
-DEEPSEEK_API_KEY='replace-with-api-key'
-DEEPSEEK_MODEL=deepseek-v4-pro
-DEEPSEEK_API_URL=https://api.deepseek.com/chat/completions
+APIYI_LLM_API_KEY='replace-with-api-key'
+APIYI_LLM_MODEL=gpt-5.6-luna
+APIYI_LLM_API_URL=https://api.apiyi.com/v1/chat/completions
 ```
 
-`DEEPSEEK_API_KEY` 用于首页 Ask Prince AI。如果没有配置，命中文章知识后接口会返回配置错误；如果问题没有命中文章知识，则会直接返回“不知道”的兜底回答，不会调用模型。
+`APIYI_LLM_API_KEY` 用于首页 Ask Prince AI、文章点评、年度总评及时间轴标题，统一使用 `APIYI_LLM_MODEL`（默认 `gpt-5.6-luna`）。API 地址和密钥参考 PixelForge 的服务端 `APIYI_LLM_*` 配置。已有点评缓存保留原始模型标记，后续生成使用新模型。如果没有配置，命中文章知识后接口会返回配置错误；如果问题没有命中文章知识，则会直接返回“不知道”的兜底回答，不会调用模型。
 
-不要把真实服务器密码、后台明文密码、`SESSION_SECRET`、生产用 `ADMIN_PASSWORD_HASH` 或 `DEEPSEEK_API_KEY` 提交到 Git 仓库。完整部署流程见 [DEPLOYMENT.md](./DEPLOYMENT.md)。
+不要把真实服务器密码、后台明文密码、`SESSION_SECRET`、生产用 `ADMIN_PASSWORD_HASH` 或 `APIYI_LLM_API_KEY` 提交到 Git 仓库。完整部署流程见 [DEPLOYMENT.md](./DEPLOYMENT.md)。
 
 ## 常用命令
 

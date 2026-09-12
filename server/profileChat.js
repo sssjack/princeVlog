@@ -1,9 +1,8 @@
 import crypto from 'node:crypto';
 import http from 'node:http';
 import https from 'node:https';
+import { getAiConfig } from './aiConfig.js';
 
-const DEFAULT_DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions';
-const DEFAULT_DEEPSEEK_MODEL = 'deepseek-v4-pro';
 const DEFAULT_CHUNK_SIZE = 900;
 const DEFAULT_CHUNK_OVERLAP = 140;
 const PROFILE_CHAT_MAX_TOKENS = 1200;
@@ -361,7 +360,7 @@ function postJsonWithNodeHttp(url, payload, headers = {}) {
 
     request.on('error', reject);
     request.setTimeout(60_000, () => {
-      request.destroy(new Error('DeepSeek profile chat request timed out'));
+      request.destroy(new Error('AI profile chat request timed out'));
     });
     request.write(body);
     request.end();
@@ -422,27 +421,23 @@ export async function answerProfileQuestion(question, articles = [], {
     };
   }
 
-  const apiKey = cleanText(env.DEEPSEEK_API_KEY);
-  if (!apiKey) {
-    throw new Error('DEEPSEEK_API_KEY is not configured');
-  }
+  const { apiKey, apiUrl, model } = getAiConfig(env);
 
-  const apiUrl = cleanText(env.DEEPSEEK_API_URL, DEFAULT_DEEPSEEK_API_URL);
-  const model = cleanText(env.DEEPSEEK_MODEL, DEFAULT_DEEPSEEK_MODEL);
   const payload = {
     model,
     messages: [
       { role: 'system', content: PROFILE_CHAT_SYSTEM_PROMPT },
       { role: 'user', content: buildUserPrompt(cleanQuestion, hits) }
     ],
-    temperature: 0.35,
-    max_tokens: PROFILE_CHAT_MAX_TOKENS
+    reasoning_effort: 'none',
+    max_completion_tokens: PROFILE_CHAT_MAX_TOKENS
   };
 
   const headers = { Authorization: `Bearer ${apiKey}` };
   const response = typeof fetchImpl === 'function'
     ? await fetchImpl(apiUrl, {
       method: 'POST',
+      signal: AbortSignal.timeout(55_000),
       headers: {
         ...headers,
         'Content-Type': 'application/json'
@@ -452,15 +447,16 @@ export async function answerProfileQuestion(question, articles = [], {
     : await postJsonWithNodeHttp(apiUrl, payload, headers);
 
   if (!response.ok) {
-    throw new Error(`DeepSeek profile chat request failed with status ${response.status}`);
+    throw new Error(`AI profile chat request failed with status ${response.status}`);
   }
 
   const data = await response.json();
   const choice = data?.choices?.[0];
   if (choice?.finish_reason === 'length') {
-    throw new Error('DeepSeek profile chat response was truncated by max_tokens');
+    throw new Error('AI profile chat response was truncated by max_completion_tokens');
   }
-  const answer = cleanText(choice?.message?.content, UNKNOWN_PROFILE_ANSWER);
+  const answer = cleanText(choice?.message?.content);
+  if (!answer) throw new Error('AI returned an empty profile chat answer');
   if (answer.includes(UNKNOWN_PROFILE_ANSWER)) {
     return {
       answer: UNKNOWN_PROFILE_ANSWER,

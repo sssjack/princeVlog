@@ -5,3 +5,12 @@ artifacts/
 .env
 *.log
 *.tar.gz
+
+# Tests are local-only and must never be staged or committed.
+tests/
+**/src/test/
+**/*.test.*
+**/*.spec.*
+**/*Test.java
+**/*Tests.java
+.codex-run/

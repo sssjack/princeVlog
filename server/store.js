@@ -21,6 +21,11 @@ function toBool(value) {
   return value === true || value === 'true' || value === 1 || value === '1';
 }
 
+function toPosition(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
 function displayProvince(visit) {
   const province = cleanText(visit.province);
   const country = cleanText(visit.country);
@@ -97,6 +102,26 @@ function normalizeTimelineEventTitles(value, timestamp = now()) {
     error: cleanText(state.error),
     updatedAt: cleanText(state.updatedAt, timestamp)
   };
+}
+
+function normalizeBackgroundPhoto(value, index = 0, timestamp = now()) {
+  const photo = value && typeof value === 'object' ? value : {};
+  const createdAt = cleanText(photo.createdAt, timestamp);
+  return {
+    id: cleanText(photo.id, id()),
+    title: cleanText(photo.title, '未命名背景'),
+    imageUrl: cleanText(photo.imageUrl),
+    position: toPosition(photo.position, index * 10),
+    createdAt,
+    updatedAt: cleanText(photo.updatedAt, createdAt)
+  };
+}
+
+function sortBackgroundPhotos(photos) {
+  return [...photos].sort((a, b) => (
+    toPosition(a.position) - toPosition(b.position)
+    || new Date(a.createdAt) - new Date(b.createdAt)
+  ));
 }
 
 function pendingAiReview(previous, timestamp = now()) {
@@ -205,6 +230,7 @@ function defaultData(seedDemo = false) {
     articles: (demo.articles || []).map(normalizeArticle),
     albums: demo.albums || [],
     photos: demo.photos || [],
+    backgroundPhotos: demo.backgroundPhotos || [],
     comments: [],
     messages: [],
     visits: [],
@@ -223,6 +249,9 @@ function normalizeData(data) {
     articles: Array.isArray(data?.articles) ? data.articles.map(normalizeArticle) : [],
     albums: Array.isArray(data?.albums) ? data.albums : [],
     photos: Array.isArray(data?.photos) ? data.photos : [],
+    backgroundPhotos: Array.isArray(data?.backgroundPhotos)
+      ? data.backgroundPhotos.map((photo, index) => normalizeBackgroundPhoto(photo, index)).filter((photo) => photo.imageUrl)
+      : [],
     comments: Array.isArray(data?.comments) ? data.comments : [],
     messages: Array.isArray(data?.messages) ? data.messages : [],
     visits: Array.isArray(data?.visits) ? data.visits : [],
@@ -262,6 +291,45 @@ export function createStore(dbPath, { seedDemo = false } = {}) {
       categoryName: category?.name || '未分类',
       categorySlug: category?.slug || ''
     };
+  }
+
+  function extractAnnualArticleYear(article) {
+    const title = cleanText(article?.title);
+    const titleMatch = title.match(/\u8fd9\u4e00\u5e74--.*?(20\d{2})/u);
+    if (titleMatch) return Number(titleMatch[1]);
+
+    const slug = cleanText(article?.slug).toLowerCase();
+    const slugPatterns = [
+      /^my-(20\d{2})-year-review$/,
+      /^zhe-yi-nian-wo-de-(20\d{2})$/
+    ];
+    for (const pattern of slugPatterns) {
+      const match = slug.match(pattern);
+      if (match) return Number(match[1]);
+    }
+
+    return null;
+  }
+
+  function articleUpdatedTime(article) {
+    const timestamp = Date.parse(article?.updatedAt);
+    return Number.isFinite(timestamp) ? timestamp : 0;
+  }
+
+  function articleSortTime(article) {
+    const annualYear = extractAnnualArticleYear(article);
+    if (annualYear) return Date.UTC(annualYear, 11, 31, 23, 59, 59);
+    return articleUpdatedTime(article);
+  }
+
+  function compareArticles(a, b) {
+    const bySortTime = articleSortTime(b) - articleSortTime(a);
+    if (bySortTime !== 0) return bySortTime;
+
+    const byUpdatedAt = articleUpdatedTime(b) - articleUpdatedTime(a);
+    if (byUpdatedAt !== 0) return byUpdatedAt;
+
+    return cleanText(a?.title).localeCompare(cleanText(b?.title), 'zh-Hans-CN');
   }
 
   function assertUniqueSlug(collection, slug, currentId) {
@@ -363,7 +431,7 @@ export function createStore(dbPath, { seedDemo = false } = {}) {
           return `${article.title} ${article.subtitle} ${article.excerpt}`.toLowerCase().includes(normalizedSearch);
         })
         .map(projectArticle)
-        .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+        .sort(compareArticles);
     },
 
     async getArticle(identifier, { includeDrafts = false } = {}) {
@@ -591,6 +659,51 @@ export function createStore(dbPath, { seedDemo = false } = {}) {
     async deletePhoto(photoId) {
       return enqueueWrite(async () => {
         data.photos = data.photos.filter((item) => item.id !== photoId);
+        return { ok: true };
+      });
+    },
+
+    async listBackgroundPhotos() {
+      return sortBackgroundPhotos(data.backgroundPhotos);
+    },
+
+    async createBackgroundPhoto(input) {
+      return enqueueWrite(async () => {
+        const timestamp = now();
+        const imageUrl = cleanText(input.imageUrl);
+        if (!imageUrl) throw new Error('background photo imageUrl required');
+        const photo = {
+          id: id(),
+          title: cleanText(input.title, '未命名背景'),
+          imageUrl,
+          position: toPosition(input.position, data.backgroundPhotos.length * 10),
+          createdAt: timestamp,
+          updatedAt: timestamp
+        };
+        data.backgroundPhotos.push(photo);
+        return photo;
+      });
+    },
+
+    async updateBackgroundPhoto(photoId, input) {
+      return enqueueWrite(async () => {
+        const photo = data.backgroundPhotos.find((item) => item.id === photoId);
+        if (!photo) throw new Error('background photo not found');
+        const imageUrl = input.imageUrl === undefined ? photo.imageUrl : cleanText(input.imageUrl);
+        if (!imageUrl) throw new Error('background photo imageUrl required');
+        Object.assign(photo, {
+          title: input.title === undefined ? photo.title : cleanText(input.title, photo.title),
+          imageUrl,
+          position: input.position === undefined ? photo.position : toPosition(input.position, photo.position),
+          updatedAt: now()
+        });
+        return photo;
+      });
+    },
+
+    async deleteBackgroundPhoto(photoId) {
+      return enqueueWrite(async () => {
+        data.backgroundPhotos = data.backgroundPhotos.filter((item) => item.id !== photoId);
         return { ok: true };
       });
     },

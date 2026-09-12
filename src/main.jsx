@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import {
+  ArrowUpRight,
   BarChart3,
   Calendar,
   Camera,
@@ -29,12 +30,14 @@ import {
   Shield,
   Sparkles,
   Star,
+  Sun,
   Trash2,
   Upload,
   UserRound,
   X
 } from 'lucide-react';
 import './styles.css';
+import './public.css';
 import aboutAvatarUrl from './assets/about-avatar.jpg';
 
 const BASE_PATH = (import.meta.env.BASE_URL || '/princevlog/').replace(/\/$/, '');
@@ -46,12 +49,9 @@ const suggestedProfileQuestions = [
   '他是一个什么样的人？'
 ];
 const PUBLIC_THEMES = [
-  { id: 'nocturne', label: '夜航', colors: ['#d8b4fe', '#22d3ee', '#0f172a'] },
-  { id: 'ink', label: '墨境', colors: ['#f8fafc', '#64748b', '#020617'] },
-  { id: 'ember', label: '余烬', colors: ['#f59e0b', '#fb7185', '#180b08'] },
-  { id: 'ether', label: '星雾', colors: ['#a7f3d0', '#818cf8', '#050816'] },
-  { id: 'lumen', label: '晨光', colors: ['#f8fafc', '#facc15', '#38bdf8'] },
-  { id: 'paper', label: '纸境', colors: ['#fff7ed', '#0f766e', '#111827'] }
+  { id: 'sage', label: '抹茶奶白', colors: ['#52735e', '#e8eee4', '#faf9f5'] },
+  { id: 'sky', label: '晴空蓝', colors: ['#476b91', '#e7eff7', '#f8fafc'] },
+  { id: 'peach', label: '杏桃日光', colors: ['#995b45', '#f4e6dd', '#fdf9f5'] }
 ];
 
 function readStoredPublicTheme() {
@@ -106,9 +106,71 @@ function formatDateTime(value) {
   ].join(' ');
 }
 
-function Markdown({ content }) {
+function plainTextFromMarkedTokens(tokens = []) {
+  return tokens.map((token) => {
+    if (Array.isArray(token.tokens)) return plainTextFromMarkedTokens(token.tokens);
+    if (typeof token.text === 'string') return token.text;
+    if (typeof token.raw === 'string') return token.raw;
+    return '';
+  }).join('');
+}
+
+function normalizeHeadingText(value) {
+  return String(value || '')
+    .replace(/<[^>]*>/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function createHeadingId(text, index, usedIds) {
+  const base = normalizeHeadingText(text)
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^\p{Letter}\p{Number}]+/gu, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 56) || `section-${index + 1}`;
+  const count = usedIds.get(base) || 0;
+  usedIds.set(base, count + 1);
+  return count ? `${base}-${count + 1}` : base;
+}
+
+function extractArticleHeadings(content) {
+  try {
+    const usedIds = new Map();
+    return marked.lexer(content || '')
+      .filter((token) => token.type === 'heading' && token.depth >= 1 && token.depth <= 4)
+      .map((token, index) => {
+        const title = normalizeHeadingText(
+          plainTextFromMarkedTokens(token.tokens) || token.text || `章节 ${index + 1}`
+        );
+        return {
+          id: createHeadingId(title, index, usedIds),
+          title,
+          depth: Math.min(Math.max(Number(token.depth) || 1, 1), 4)
+        };
+      });
+  } catch {
+    return [];
+  }
+}
+
+function Markdown({ content, headings = [] }) {
+  const ref = useRef(null);
   const html = useMemo(() => DOMPurify.sanitize(marked.parse(content || '')), [content]);
-  return <div className="markdown" dangerouslySetInnerHTML={{ __html: html }} />;
+
+  useEffect(() => {
+    const headingNodes = ref.current?.querySelectorAll('h1, h2, h3, h4, h5, h6') || [];
+    headingNodes.forEach((node, index) => {
+      const heading = headings[index];
+      if (!heading?.id) return;
+      node.id = heading.id;
+      node.tabIndex = -1;
+      node.classList.add('markdown-heading');
+    });
+  }, [headings, html]);
+
+  return <div ref={ref} className="markdown" dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
 function IconButton({ icon: Icon, children, className = '', ...props }) {
@@ -185,6 +247,7 @@ function Shell({ route, navigate }) {
       {path === '/timeline' && <TimelinePage navigate={navigate} />}
       {path.startsWith('/article/') && <ArticleDetailPage identifier={decodeURIComponent(path.replace('/article/', ''))} />}
       {path === '/gallery' && <GalleryPage />}
+      {path === '/about' && <AboutPage />}
     </PublicLayout>
   );
 }
@@ -200,23 +263,6 @@ function PublicLayout({ children, navigate, path }) {
     }
   }, [theme]);
 
-  function scrollToAboutMe() {
-    const scroll = () => {
-      const target = document.getElementById('about-me');
-      const header = document.querySelector('.site-header');
-      if (!target) return;
-      const offset = (header?.offsetHeight || 0) + 24;
-      const top = target.getBoundingClientRect().top + window.scrollY - offset;
-      window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
-    };
-    if (path !== '/') {
-      navigate('/');
-      window.setTimeout(scroll, 160);
-      return;
-    }
-    scroll();
-  }
-
   return (
     <div className="public-shell" data-theme={theme}>
       <header className="site-header">
@@ -229,7 +275,7 @@ function PublicLayout({ children, navigate, path }) {
             <button className={path === '/' ? 'active' : ''} aria-label="首页" onClick={() => navigate('/')}>
               <Home size={17} /><span>首页</span>
             </button>
-            <button className={path === '/articles' ? 'active' : ''} aria-label="文章" onClick={() => navigate('/articles')}>
+            <button className={path === '/articles' || path.startsWith('/article/') ? 'active' : ''} aria-label="文章" onClick={() => navigate('/articles')}>
               <FileText size={17} /><span>文章</span>
             </button>
             <button className={path === '/timeline' ? 'active' : ''} aria-label="时间轴" onClick={() => navigate('/timeline')}>
@@ -238,8 +284,8 @@ function PublicLayout({ children, navigate, path }) {
             <button className={path === '/gallery' ? 'active' : ''} aria-label="相册" onClick={() => navigate('/gallery')}>
               <Camera size={17} /><span>相册</span>
             </button>
-            <button aria-label="About me" onClick={scrollToAboutMe}>
-              <UserRound size={17} /><span>About me</span>
+            <button className={path === '/about' ? 'active' : ''} aria-label="关于我" onClick={() => navigate('/about')}>
+              <UserRound size={17} /><span>关于我</span>
             </button>
             <button aria-label="后台" onClick={() => navigate('/admin')}>
               <Shield size={17} /><span>后台</span>
@@ -256,7 +302,27 @@ function PublicLayout({ children, navigate, path }) {
 
 function StyleSwitcher({ theme, onChange }) {
   const [open, setOpen] = useState(false);
+  const switcherRef = useRef(null);
   const activeTheme = PUBLIC_THEMES.find((item) => item.id === theme) || PUBLIC_THEMES[0];
+
+  useEffect(() => {
+    if (!open) return;
+    const dismiss = (event) => {
+      if (!switcherRef.current?.contains(event.target)) setOpen(false);
+    };
+    const escape = (event) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+        switcherRef.current?.querySelector('button')?.focus();
+      }
+    };
+    document.addEventListener('pointerdown', dismiss);
+    document.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('pointerdown', dismiss);
+      document.removeEventListener('keydown', escape);
+    };
+  }, [open]);
 
   function chooseTheme(id) {
     onChange(id);
@@ -264,11 +330,11 @@ function StyleSwitcher({ theme, onChange }) {
   }
 
   return (
-    <div className="style-switcher">
+    <div className="style-switcher" ref={switcherRef}>
       <button
         type="button"
         className="style-trigger"
-        aria-label="选择首页风格"
+        aria-label="选择浅色主题"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
       >
@@ -277,14 +343,13 @@ function StyleSwitcher({ theme, onChange }) {
         <i className="style-current" style={{ background: activeTheme.colors[0] }} />
       </button>
       {open ? (
-        <div className="style-menu" role="menu" aria-label="首页风格">
+        <div className="style-menu" role="group" aria-label="浅色主题">
           {PUBLIC_THEMES.map((item) => (
             <button
               key={item.id}
               type="button"
               className={theme === item.id ? 'active' : ''}
-              role="menuitemradio"
-              aria-checked={theme === item.id}
+              aria-pressed={theme === item.id}
               onClick={() => chooseTheme(item.id)}
             >
               <span className="theme-swatch" aria-hidden="true">
@@ -300,6 +365,52 @@ function StyleSwitcher({ theme, onChange }) {
   );
 }
 
+function AboutPage() {
+  return (
+    <div className="about-page-shell">
+      <AboutMeSection />
+    </div>
+  );
+}
+
+function AboutMeSection() {
+  return (
+    <section className="about-me-section" id="about-me">
+      <div className="about-avatar-card">
+        <img src={aboutAvatarUrl} alt="PrinceVlog 个人头像" />
+        <span>正在加载阳光能量</span>
+      </div>
+      <div className="about-copy">
+        <span className="about-kicker"><Sparkles size={16} />About me</span>
+        <h2>阳光小简历</h2>
+        <p>
+          嗨，我是 Prince。一个一边赶路、一边把生活写进年终总结的人。
+          这些年我在考试、工作、城市迁移、爬山和自我修复之间来回闯关：
+          有时认真到冒烟，有时快乐到起飞，但总体方向一直是向前、向亮、向更大的世界。
+        </p>
+        <p>
+          我喜欢把生活拆成文章、照片和时间轴，也喜欢在复盘里给自己递一杯热乎乎的鼓励。
+          人生进度条偶尔卡顿，但我会笑着继续加载；如果今天还没变厉害，那就先变可爱一点。
+        </p>
+        <div className="about-tags" aria-label="我的关键词">
+          <span>年终总结收藏家</span>
+          <span>考试副本挑战中</span>
+          <span>会爬山也会重启</span>
+          <span>太阳能补电型选手</span>
+        </div>
+        <div className="about-social-links" aria-label="社交帐号">
+          <a href="https://github.com/sssjack" target="_blank" rel="noreferrer">
+            <Github size={18} /><span>GitHub</span>
+          </a>
+          <a href="https://www.zhihu.com/people/68505a0583a497cb4f7dc67fe37869d7" target="_blank" rel="noreferrer">
+            <MessageCircle size={18} /><span>知乎</span>
+          </a>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function HomePage({ navigate }) {
   const { loading, error, data } = usePageData(() => api('/public/bootstrap'), []);
   const settings = data?.settings || {};
@@ -309,7 +420,6 @@ function HomePage({ navigate }) {
   const albums = data?.albums || [];
   const mottoes = settings.mottoes || [];
   const heroThought = mottoes[0] || '把时间交给热爱，答案会在静处慢慢长出来。';
-  const mottoLoop = mottoes.length > 0 ? mottoes : [heroThought];
   const heroSignals = [
     { label: '推荐', value: recommended.length },
     { label: '最新', value: latest.length },
@@ -327,16 +437,17 @@ function HomePage({ navigate }) {
   return (
     <div className="home">
       <section className="hero-section">
-        <div className="hero-media" />
         <div className="hero-content">
+          <div className="hero-intro">
           <div className="hero-title-stage">
-            <div className="eyebrow"><Sparkles size={18} />PrinceVlog</div>
+            <div className="eyebrow"><span className="hello-dot" /> A LITTLE SPACE FOR LIFE</div>
             <h1>{settings.siteTitle || 'PrinceVlog'}</h1>
+            <h2>把日子过成，<br /><em>喜欢的样子。</em><Sun className="hero-sun" aria-hidden="true" /></h2>
             <p>{settings.heroSubtitle || '记录文字、照片和人生路上的灵感。'}</p>
           </div>
           <div className="hero-primary-panel" aria-label="首页主要功能">
             <div className="hero-actions">
-              <IconButton icon={FileText} onClick={() => navigate('/articles')}>阅读文章</IconButton>
+              <IconButton icon={ArrowUpRight} onClick={() => navigate('/articles')}>开始阅读</IconButton>
               <IconButton icon={Camera} className="ghost" onClick={() => navigate('/gallery')}>浏览相册</IconButton>
               <IconButton icon={MessageCircle} className="ghost" onClick={scrollToProfileChat}>问问 AI</IconButton>
             </div>
@@ -349,63 +460,26 @@ function HomePage({ navigate }) {
               ))}
             </div>
           </div>
+          </div>
           <aside
             className="hero-thought-panel"
-            aria-label="首页哲思"
-            style={{ '--motto-duration': `${Math.max(mottoLoop.length, 1) * 5.6}s` }}
+            aria-label="今日手记"
           >
-            <span>Field Note</span>
-            <div className={`motto-fade-stack hero-motto-stack ${mottoLoop.length === 1 ? 'single' : ''}`}>
-              {mottoLoop.map((item, index) => (
-                <p key={`${item}-${index}`} style={{ '--motto-index': index }}>{item}</p>
-              ))}
-            </div>
-            <small>{settings.ownerName || 'Prince'} / still moving</small>
+            <div className="note-topline"><span>THE DAILY NOTE</span><Sun size={22} /></div>
+            <span className="note-quote" aria-hidden="true">“</span>
+            <p>{heroThought}</p>
+            <div className="note-signature"><span>慢慢来，也没关系。</span><small>{settings.ownerName || 'Prince'}</small></div>
+            <div className="note-bottom"><span>文字 · 影像 · 生活</span><Sparkles size={18} /></div>
           </aside>
         </div>
+        <div className="hero-footnote"><span>收集生活里的小小闪光</span><span>SCROLL TO EXPLORE ↓</span></div>
       </section>
-
-      <FadeIn tag="section" className="about-me-section" id="about-me">
-        <div className="about-avatar-card">
-          <img src={aboutAvatarUrl} alt="PrinceVlog 个人头像" />
-          <span>正在加载阳光能量</span>
-        </div>
-        <div className="about-copy">
-          <span className="about-kicker"><Sparkles size={16} />About me</span>
-          <h2>阳光小简历</h2>
-          <p>
-            嗨，我是 Prince。一个一边赶路、一边把生活写进年终总结的人。
-            这些年我在考试、工作、城市迁移、爬山和自我修复之间来回闯关：
-            有时认真到冒烟，有时快乐到起飞，但总体方向一直是向前、向亮、向更大的世界。
-          </p>
-          <p>
-            我喜欢把生活拆成文章、照片和时间轴，也喜欢在复盘里给自己递一杯热乎乎的鼓励。
-            人生进度条偶尔卡顿，但我会笑着继续加载；如果今天还没变厉害，那就先变可爱一点。
-          </p>
-          <div className="about-tags" aria-label="我的关键词">
-            <span>年终总结收藏家</span>
-            <span>考试副本挑战中</span>
-            <span>会爬山也会重启</span>
-            <span>太阳能补电型选手</span>
-          </div>
-          <div className="about-social-links" aria-label="社交帐号">
-            <a href="https://github.com/sssjack" target="_blank" rel="noreferrer">
-              <Github size={18} /><span>GitHub</span>
-            </a>
-            <a href="https://www.zhihu.com/people/68505a0583a497cb4f7dc67fe37869d7" target="_blank" rel="noreferrer">
-              <MessageCircle size={18} /><span>知乎</span>
-            </a>
-          </div>
-        </div>
-      </FadeIn>
-
-      <ProfileAiChat navigate={navigate} />
 
       <FadeIn tag="section" className="content-band">
         <div className="section-head">
           <span>Featured</span>
           <h2>推荐文章</h2>
-          <p>置顶那些值得反复回看的记录。</p>
+          <p>有些瞬间，值得多停留一会儿。</p>
         </div>
         <div className="article-grid">
           {recommended.map((article, i) => (
@@ -416,6 +490,8 @@ function HomePage({ navigate }) {
           {recommended.length === 0 ? <EmptyState text="后台设置推荐文章后会显示在这里。" /> : null}
         </div>
       </FadeIn>
+
+      <ProfileAiChat navigate={navigate} />
 
       <FadeIn tag="section" className="split-band">
         <div>
@@ -457,8 +533,8 @@ function HomePage({ navigate }) {
       <FadeIn tag="section" className="content-band">
         <div className="section-head">
           <span>Gallery</span>
-          <h2>相簿照片墙</h2>
-          <p>按文件夹沉淀主题，也按日期保留时间线。</p>
+          <h2>生活切片</h2>
+          <p>一些走过的地方，一些想留住的瞬间。</p>
         </div>
         <div className="album-preview">
           {albums.map((album) => (
@@ -579,8 +655,8 @@ function ProfileAiChat({ navigate }) {
         <span className="about-kicker"><MessageCircle size={16} />Ask Prince AI</span>
         <h2>问问文章里的我</h2>
         <p>
-          这里会优先阅读已发布文章和年终总结，再用轻快一点的语气回答。
-          如果文章没有写到，我会直接说不知道。
+          好奇我的故事？从一个小问题开始。
+          让 AI 带你翻翻我的文章，聊聊那些走过的路。
         </p>
       </div>
       <div className="profile-chat-panel">
@@ -630,6 +706,7 @@ function ProfileAiChat({ navigate }) {
             value={question}
             onChange={(event) => setQuestion(event.target.value)}
             placeholder="问一个关于 Prince 的问题"
+            aria-label="向 Prince AI 提问"
             maxLength={500}
           />
           <button type="submit" aria-label="发送问题" disabled={loading || !question.trim()}>
@@ -677,39 +754,41 @@ function YearTimelineExperience({ navigate, compact = false }) {
       <div className="section-head timeline-head">
         <span><Sparkles size={16} />Chronicle</span>
         <h2>时间轴</h2>
-        <p>把每一篇年终总结拆成可回望的时间节点，让年月、选择和转折重新排成一条发光的路径。</p>
+        <p>沿着时间往回走，看看每一年的自己。</p>
       </div>
 
       {flatEvents.length === 0 ? (
         <EmptyState text="年终总结文章里暂时没有可识别的时间节点。" />
       ) : (
         <div className="timeline-stage">
-          <aside className="timeline-event-detail" aria-live="polite">
-            {activeEvent ? (
-              <>
-                <div className="timeline-detail-kicker">
-                  <Calendar size={16} />
-                  <span>{activeEvent.dateLabel} / {activeEvent.year}</span>
-                  {activeEvent.featured ? (
-                    <span className="timeline-detail-badge"><Star size={13} />重点节点</span>
-                  ) : null}
-                </div>
-                <h3>{activeEvent.title}</h3>
-                <p>{activeEvent.detail}</p>
-                <div className="timeline-detail-actions">
-                  <button type="button" onClick={() => navigate(`/article/${activeEvent.articleSlug}`)}>
-                    <FileText size={17} />
-                    <span>阅读全文</span>
-                  </button>
-                  {compact ? (
-                    <button type="button" onClick={() => navigate('/timeline')}>
-                      <Clock3 size={17} />
-                      <span>完整时间轴</span>
+          <aside className="timeline-event-detail-shell" aria-live="polite">
+            <div className="timeline-event-detail">
+              {activeEvent ? (
+                <>
+                  <div className="timeline-detail-kicker">
+                    <Calendar size={16} />
+                    <span>{activeEvent.dateLabel} / {activeEvent.year}</span>
+                    {activeEvent.featured ? (
+                      <span className="timeline-detail-badge"><Star size={13} />重点节点</span>
+                    ) : null}
+                  </div>
+                  <h3>{activeEvent.title}</h3>
+                  <p>{activeEvent.detail}</p>
+                  <div className="timeline-detail-actions">
+                    <button type="button" onClick={() => navigate(`/article/${activeEvent.articleSlug}`)}>
+                      <FileText size={17} />
+                      <span>阅读全文</span>
                     </button>
-                  ) : null}
-                </div>
-              </>
-            ) : null}
+                    {compact ? (
+                      <button type="button" onClick={() => navigate('/timeline')}>
+                        <Clock3 size={17} />
+                        <span>完整时间轴</span>
+                      </button>
+                    ) : null}
+                  </div>
+                </>
+              ) : null}
+            </div>
           </aside>
 
           <div className="timeline-constellation" aria-label="年终总结时间轴">
@@ -744,12 +823,12 @@ function YearTimelineExperience({ navigate, compact = false }) {
         </div>
       )}
 
-      <DeepSeekAnnualInsight insight={insight} />
+      <AiAnnualInsight insight={insight} />
     </div>
   );
 }
 
-function DeepSeekAnnualInsight({ insight }) {
+function AiAnnualInsight({ insight }) {
   const ready = insight?.status === 'ready' && insight.overall;
   const blocks = [
     { key: 'strengths', title: '优点', items: insight?.strengths || [] },
@@ -761,9 +840,9 @@ function DeepSeekAnnualInsight({ insight }) {
     <section className={`timeline-insight-panel ${ready ? 'ready' : 'pending'}`}>
       <div className="timeline-insight-orbit" aria-hidden="true" />
       <div className="timeline-insight-head">
-        <span><Sparkles size={16} />DeepSeek Review</span>
+        <span><Sparkles size={16} />AI Review</span>
         <h3>这些年终总结里的你</h3>
-        <small>{ready ? `${insight.model || 'DeepSeek'} · ${formatDate(insight.updatedAt)}` : 'DeepSeek 正在读取这些年终总结'}</small>
+        <small>{ready ? `${insight.model || 'AI'} · ${formatDate(insight.updatedAt)}` : 'AI 正在读取这些年终总结'}</small>
       </div>
       {ready ? (
         <>
@@ -791,7 +870,7 @@ function DeepSeekAnnualInsight({ insight }) {
       ) : (
         <div className="timeline-insight-pending">
           <div className="loader" />
-          <p>{insight?.status === 'failed' ? 'DeepSeek 总评暂时生成失败，稍后会自动重试。' : '总评生成后会在这里展示：评价、个人画像、优点、缺点和建议。'}</p>
+          <p>{insight?.status === 'failed' ? 'AI 总评暂时生成失败，稍后会自动重试。' : '总评生成后会在这里展示：评价、个人画像、优点、缺点和建议。'}</p>
         </div>
       )}
     </section>
@@ -844,6 +923,8 @@ function ArticleDetailPage({ identifier }) {
   const [comment, setComment] = useState({ author: '', content: '' });
   const [refreshKey, setRefreshKey] = useState(0);
   const { loading, error, data } = usePageData(() => api(`/public/articles/${encodeURIComponent(identifier)}`), [identifier, refreshKey]);
+  const article = data?.article;
+  const headings = useMemo(() => extractArticleHeadings(article?.content || ''), [article?.content]);
 
   async function submitComment(event) {
     event.preventDefault();
@@ -857,8 +938,8 @@ function ArticleDetailPage({ identifier }) {
 
   if (loading) return <Loading label="正在打开文章" />;
   if (error) return <ErrorView message={error} />;
+  if (!article) return <ErrorView message="文章不存在" />;
 
-  const article = data.article;
   const comments = data.comments || [];
 
   return (
@@ -872,26 +953,115 @@ function ArticleDetailPage({ identifier }) {
           <small>{formatDate(article.updatedAt)} · {article.viewCount || 0} 次阅读</small>
         </div>
       </header>
-      <Markdown content={article.content} />
-      <AiReviewBlock review={article.aiReview} />
-      <section className="comment-section">
-        <h2>评论</h2>
-        <form className="comment-form" onSubmit={submitComment}>
-          <input value={comment.author} onChange={(event) => setComment({ ...comment, author: event.target.value })} placeholder="你的名字" />
-          <textarea value={comment.content} onChange={(event) => setComment({ ...comment, content: event.target.value })} placeholder="写下你的评论" required />
-          <IconButton icon={Send}>发布评论</IconButton>
-        </form>
-        <div className="comment-list">
-          {comments.map((item) => (
-            <div className="comment-item" key={item.id}>
-              <strong>{item.author}</strong>
-              <p>{item.content}</p>
-              {item.reply ? <blockquote>{item.reply}</blockquote> : null}
+      <div className={`article-reading-layout ${headings.length > 0 ? 'has-toc' : 'no-toc'}`}>
+        <ArticleTableOfContents headings={headings} />
+        <div className="article-reading-main">
+          <Markdown content={article.content} headings={headings} />
+          <AiReviewBlock review={article.aiReview} />
+          <section className="comment-section">
+            <h2>评论</h2>
+            <form className="comment-form" onSubmit={submitComment}>
+              <input value={comment.author} onChange={(event) => setComment({ ...comment, author: event.target.value })} placeholder="你的名字" />
+              <textarea value={comment.content} onChange={(event) => setComment({ ...comment, content: event.target.value })} placeholder="写下你的评论" required />
+              <IconButton icon={Send}>发布评论</IconButton>
+            </form>
+            <div className="comment-list">
+              {comments.map((item) => (
+                <div className="comment-item" key={item.id}>
+                  <strong>{item.author}</strong>
+                  <p>{item.content}</p>
+                  {item.reply ? <blockquote>{item.reply}</blockquote> : null}
+                </div>
+              ))}
             </div>
-          ))}
+          </section>
         </div>
-      </section>
+      </div>
     </article>
+  );
+}
+
+function ArticleTableOfContents({ headings }) {
+  const [activeId, setActiveId] = useState(headings[0]?.id || '');
+
+  useEffect(() => {
+    setActiveId(headings[0]?.id || '');
+  }, [headings]);
+
+  useEffect(() => {
+    if (headings.length === 0) return undefined;
+    let frame = 0;
+    const narrowScreen = window.matchMedia('(max-width: 980px)');
+
+    const stickyOffset = () => {
+      const header = document.querySelector('.site-header');
+      const toc = document.querySelector('.article-toc-shell');
+      const tocHeight = narrowScreen.matches ? (toc?.offsetHeight || 0) : 0;
+      return (header?.offsetHeight || 0) + tocHeight;
+    };
+
+    const updateActiveHeading = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        const threshold = stickyOffset() + 38;
+        let current = headings[0]?.id || '';
+
+        for (const heading of headings) {
+          const node = document.getElementById(heading.id);
+          if (node && node.getBoundingClientRect().top <= threshold) {
+            current = heading.id;
+          }
+        }
+
+        setActiveId(current);
+      });
+    };
+
+    updateActiveHeading();
+    window.addEventListener('scroll', updateActiveHeading, { passive: true });
+    window.addEventListener('resize', updateActiveHeading);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener('scroll', updateActiveHeading);
+      window.removeEventListener('resize', updateActiveHeading);
+    };
+  }, [headings]);
+
+  function jumpToHeading(id) {
+    const target = document.getElementById(id);
+    if (!target) return;
+    const header = document.querySelector('.site-header');
+    const toc = document.querySelector('.article-toc-shell');
+    const tocHeight = window.matchMedia('(max-width: 980px)').matches ? (toc?.offsetHeight || 0) : 0;
+    const offset = (header?.offsetHeight || 0) + tocHeight + 24;
+    const top = target.getBoundingClientRect().top + window.scrollY - offset;
+    window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+    target.focus({ preventScroll: true });
+    setActiveId(id);
+  }
+
+  if (headings.length === 0) return null;
+
+  return (
+    <aside className="article-toc-shell" aria-label="文章目录">
+      <div className="article-toc">
+        <span className="article-toc-kicker"><FileText size={15} />目录</span>
+        <nav className="article-toc-list">
+          {headings.map((heading) => (
+            <button
+              key={heading.id}
+              type="button"
+              className={`article-toc-item depth-${heading.depth} ${activeId === heading.id ? 'active' : ''}`}
+              title={heading.title}
+              onClick={() => jumpToHeading(heading.id)}
+            >
+              <span>{heading.title}</span>
+            </button>
+          ))}
+        </nav>
+      </div>
+    </aside>
   );
 }
 
@@ -905,7 +1075,7 @@ function AiReviewBlock({ review }) {
         <span>AI 点评</span>
       </div>
       <p>{review.content}</p>
-      <small>{review.model || 'DeepSeek'} · {formatDate(review.updatedAt)}</small>
+      <small>{review.model || 'AI'} · {formatDate(review.updatedAt)}</small>
     </section>
   );
 }
@@ -923,7 +1093,8 @@ function GalleryPage() {
       <div className="page-title row">
         <div>
           <span>Gallery</span>
-          <h1>相簿照片墙</h1>
+          <h1>生活相册</h1>
+          <p>把喜欢的瞬间，好好收藏。</p>
         </div>
         <div className="segmented">
           <button className={mode === 'folder' ? 'active' : ''} onClick={() => setMode('folder')}><Folder size={17} />文件夹</button>
@@ -933,7 +1104,7 @@ function GalleryPage() {
       {mode === 'folder' ? (
         <div className="album-wall">
           {albums.map((album) => (
-            <section key={album.id} className="album-group">
+            <section key={album.id || album.date} className="album-group">
               <div className="album-title">
                 <h2>{album.title}</h2>
                 <p>{album.description}</p>
@@ -945,7 +1116,7 @@ function GalleryPage() {
       ) : (
         <div className="album-wall">
           {albums.map((group) => (
-            <section key={group.date} className="album-group">
+            <section key={group.date || group.id} className="album-group">
               <div className="album-title">
                 <h2>{group.date}</h2>
               </div>
@@ -991,7 +1162,7 @@ function MessageBoard({ initialMessages = [] }) {
       <div className="section-head">
         <span>Message</span>
         <h2>留言板</h2>
-        <p>把想说的话留在这里，我会在后台回复。</p>
+        <p>路过也好，常来也好，留句话再走吧。</p>
       </div>
       <form className="message-form" onSubmit={submit}>
         <input value={form.author} onChange={(event) => setForm({ ...form, author: event.target.value })} placeholder="你的名字" />
@@ -2105,4 +2276,6 @@ function App() {
   return <Shell route={route} navigate={navigate} />;
 }
 
-createRoot(document.getElementById('root')).render(<App />);
+const root = import.meta.hot?.data?.root || createRoot(document.getElementById('root'));
+if (import.meta.hot?.data) import.meta.hot.data.root = root;
+root.render(<App />);

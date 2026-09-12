@@ -1,10 +1,9 @@
 import crypto from 'node:crypto';
 import http from 'node:http';
 import https from 'node:https';
+import { getAiConfig, isAiConfigured } from './aiConfig.js';
 import { createAnnualTimeline } from './timeline.js';
 
-const DEFAULT_DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions';
-const DEFAULT_DEEPSEEK_TITLE_MODEL = 'deepseek-chat';
 const TITLE_BATCH_SIZE = 6;
 export const TIMELINE_TITLE_FORMAT_VERSION = 'timeline-title-v2';
 
@@ -103,7 +102,7 @@ function parseJsonContent(content) {
     return JSON.parse(text);
   } catch {
     const match = text.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error('DeepSeek returned invalid timeline title JSON');
+    if (!match) throw new Error('AI returned invalid timeline title JSON');
     return JSON.parse(match[0]);
   }
 }
@@ -140,7 +139,7 @@ function postJsonWithNodeHttp(url, payload, headers = {}) {
 
     request.on('error', reject);
     request.setTimeout(120_000, () => {
-      request.destroy(new Error('DeepSeek timeline title request timed out'));
+      request.destroy(new Error('AI timeline title request timed out'));
     });
     request.write(body);
     request.end();
@@ -152,16 +151,17 @@ async function requestTitleBatch(events, { apiUrl, apiKey, model, fetchImpl }) {
     model,
     messages: [
       { role: 'system', content: TITLE_SYSTEM_PROMPT },
-      { role: 'user', content: sourceForEvents(events) }
+      { role: 'user', content: `请按要求输出 JSON 格式的时间轴标题。\n\n${sourceForEvents(events)}` }
     ],
-    temperature: 0.25,
-    max_tokens: 6000,
+    reasoning_effort: 'none',
+    max_completion_tokens: 6000,
     response_format: { type: 'json_object' }
   };
   const headers = { Authorization: `Bearer ${apiKey}` };
   const response = typeof fetchImpl === 'function'
     ? await fetchImpl(apiUrl, {
       method: 'POST',
+      signal: AbortSignal.timeout(120_000),
       headers: {
         ...headers,
         'Content-Type': 'application/json; charset=utf-8'
@@ -171,13 +171,13 @@ async function requestTitleBatch(events, { apiUrl, apiKey, model, fetchImpl }) {
     : await postJsonWithNodeHttp(apiUrl, payload, headers);
 
   if (!response.ok) {
-    throw new Error(`DeepSeek timeline title request failed with status ${response.status}`);
+    throw new Error(`AI timeline title request failed with status ${response.status}`);
   }
 
   const data = await response.json();
   const choice = data?.choices?.[0];
   if (choice?.finish_reason === 'length') {
-    throw new Error('DeepSeek timeline title response was truncated by max_tokens');
+    throw new Error('AI timeline title response was truncated by max_completion_tokens');
   }
   const parsed = parseJsonContent(choice?.message?.content);
   const titles = {};
@@ -193,7 +193,7 @@ async function requestTitleBatchWithRetry(events, context) {
   try {
     return await requestTitleBatch(events, context);
   } catch (error) {
-    const truncated = /truncated|max_tokens/i.test(error?.message || '');
+    const truncated = /truncated|max_completion_tokens/i.test(error?.message || '');
     if (!truncated) throw error;
     if (events.length <= 1) {
       const event = events[0];
@@ -220,14 +220,9 @@ export async function generateTimelineEventTitles(articles = [], {
   env = process.env,
   fetchImpl = globalThis.fetch
 } = {}) {
-  const apiKey = cleanText(env.DEEPSEEK_API_KEY);
-  if (!apiKey) {
-    throw new Error('DEEPSEEK_API_KEY is not configured');
-  }
+  const { apiKey, apiUrl, model } = getAiConfig(env);
 
   const events = annualTitleEvents(articles);
-  const apiUrl = cleanText(env.DEEPSEEK_API_URL, DEFAULT_DEEPSEEK_API_URL);
-  const model = cleanText(env.DEEPSEEK_TITLE_MODEL, DEFAULT_DEEPSEEK_TITLE_MODEL);
   const generated = {};
 
   for (const batch of chunk(events, TITLE_BATCH_SIZE)) {
@@ -263,7 +258,7 @@ export function createTimelineTitleQueue({
   let active = false;
 
   async function refreshTitles() {
-    if (!store || active || !cleanText(process.env.DEEPSEEK_API_KEY)) return false;
+    if (!store || active || !isAiConfigured()) return false;
     active = true;
     try {
       const articles = await store.listArticles({ includeDrafts: true });
@@ -281,7 +276,7 @@ export function createTimelineTitleQueue({
       try {
         await store.setTimelineEventTitles({
           status: 'failed',
-          error: error.message || 'DeepSeek timeline title failed'
+          error: error.message || 'AI timeline title failed'
         });
       } catch {
         // Keep the original failure visible in logs.
@@ -294,7 +289,7 @@ export function createTimelineTitleQueue({
   }
 
   function enqueueTitles() {
-    if (!store || active || !cleanText(process.env.DEEPSEEK_API_KEY)) return false;
+    if (!store || active || !isAiConfigured()) return false;
     setTimeout(() => {
       refreshTitles().catch((error) => {
         logger?.error?.('timeline title queue failed', error.message || error);

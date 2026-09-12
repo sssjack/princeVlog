@@ -1,10 +1,9 @@
 import crypto from 'node:crypto';
 import http from 'node:http';
 import https from 'node:https';
+import { getAiConfig, isAiConfigured } from './aiConfig.js';
 import { createAnnualTimeline } from './timeline.js';
 
-const DEFAULT_DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions';
-const DEFAULT_DEEPSEEK_MODEL = 'deepseek-v4-pro';
 const MAX_ARTICLE_CHARS = 7000;
 export const ANNUAL_TIMELINE_INSIGHT_FORMAT_VERSION = 'annual-timeline-insight-v1';
 
@@ -45,7 +44,7 @@ function parseJsonContent(content) {
     return JSON.parse(text);
   } catch {
     const match = text.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error('DeepSeek returned an invalid insight JSON');
+    if (!match) throw new Error('AI returned an invalid insight JSON');
     return JSON.parse(match[0]);
   }
 }
@@ -118,7 +117,7 @@ function postJsonWithNodeHttp(url, payload, headers = {}) {
 
     request.on('error', reject);
     request.setTimeout(120_000, () => {
-      request.destroy(new Error('DeepSeek timeline insight request timed out'));
+      request.destroy(new Error('AI timeline insight request timed out'));
     });
     request.write(body);
     request.end();
@@ -129,21 +128,16 @@ export async function generateAnnualTimelineInsight(articles = [], {
   env = process.env,
   fetchImpl = globalThis.fetch
 } = {}) {
-  const apiKey = cleanText(env.DEEPSEEK_API_KEY);
-  if (!apiKey) {
-    throw new Error('DEEPSEEK_API_KEY is not configured');
-  }
+  const { apiKey, apiUrl, model } = getAiConfig(env);
 
-  const apiUrl = cleanText(env.DEEPSEEK_API_URL, DEFAULT_DEEPSEEK_API_URL);
-  const model = cleanText(env.DEEPSEEK_MODEL, DEFAULT_DEEPSEEK_MODEL);
   const payload = {
     model,
     messages: [
       { role: 'system', content: INSIGHT_SYSTEM_PROMPT },
-      { role: 'user', content: getAnnualTimelineInsightSource(articles) }
+      { role: 'user', content: `请按要求输出 JSON 格式的年度总评。\n\n${getAnnualTimelineInsightSource(articles)}` }
     ],
-    temperature: 0.45,
-    max_tokens: 2600,
+    reasoning_effort: 'none',
+    max_completion_tokens: 2600,
     response_format: { type: 'json_object' }
   };
 
@@ -151,6 +145,7 @@ export async function generateAnnualTimelineInsight(articles = [], {
   const response = typeof fetchImpl === 'function'
     ? await fetchImpl(apiUrl, {
       method: 'POST',
+      signal: AbortSignal.timeout(120_000),
       headers: {
         ...headers,
         'Content-Type': 'application/json'
@@ -160,13 +155,13 @@ export async function generateAnnualTimelineInsight(articles = [], {
     : await postJsonWithNodeHttp(apiUrl, payload, headers);
 
   if (!response.ok) {
-    throw new Error(`DeepSeek timeline insight request failed with status ${response.status}`);
+    throw new Error(`AI timeline insight request failed with status ${response.status}`);
   }
 
   const data = await response.json();
   const choice = data?.choices?.[0];
   if (choice?.finish_reason === 'length') {
-    throw new Error('DeepSeek timeline insight response was truncated by max_tokens');
+    throw new Error('AI timeline insight response was truncated by max_completion_tokens');
   }
   const parsed = parseJsonContent(choice?.message?.content);
   const result = {
@@ -184,7 +179,7 @@ export async function generateAnnualTimelineInsight(articles = [], {
   };
 
   if (!result.overall || !result.personalEvaluation) {
-    throw new Error('DeepSeek returned an incomplete timeline insight');
+    throw new Error('AI returned an incomplete timeline insight');
   }
   return result;
 }
@@ -197,7 +192,7 @@ export function createAnnualTimelineInsightQueue({
   let active = false;
 
   async function refreshInsight() {
-    if (!store || active || !cleanText(process.env.DEEPSEEK_API_KEY)) return false;
+    if (!store || active || !isAiConfigured()) return false;
     active = true;
     try {
       const articles = await store.listArticles({ includeDrafts: true });
@@ -215,7 +210,7 @@ export function createAnnualTimelineInsightQueue({
       try {
         await store.setAnnualTimelineInsight({
           status: 'failed',
-          error: error.message || 'DeepSeek timeline insight failed'
+          error: error.message || 'AI timeline insight failed'
         });
       } catch {
         // Keep the original failure visible in logs.
@@ -228,7 +223,7 @@ export function createAnnualTimelineInsightQueue({
   }
 
   function enqueueInsight() {
-    if (!store || active || !cleanText(process.env.DEEPSEEK_API_KEY)) return false;
+    if (!store || active || !isAiConfigured()) return false;
     setTimeout(() => {
       refreshInsight().catch((error) => {
         logger?.error?.('annual timeline insight queue failed', error.message || error);

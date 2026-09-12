@@ -41,6 +41,25 @@ function toBool(value) {
   return value === true || value === 'true' || value === 1 || value === '1';
 }
 
+function publicArticleSummary(article) {
+  return {
+    id: article.id,
+    title: article.title,
+    subtitle: article.subtitle,
+    slug: article.slug,
+    coverUrl: article.coverUrl,
+    categoryId: article.categoryId,
+    categoryName: article.categoryName,
+    categorySlug: article.categorySlug,
+    excerpt: article.excerpt,
+    recommended: article.recommended,
+    status: article.status,
+    viewCount: article.viewCount,
+    createdAt: article.createdAt,
+    updatedAt: article.updatedAt
+  };
+}
+
 async function buildAuth() {
   const passwordHash = process.env.ADMIN_PASSWORD_HASH
     || await hashPassword(process.env.ADMIN_PASSWORD || 'change-me-dev-password', process.env.ADMIN_PASSWORD_SALT || 'princevlog-admin');
@@ -148,6 +167,14 @@ function articlePayload(body) {
   };
 }
 
+function backgroundPhotoPayload(body) {
+  return {
+    title: text(body.title),
+    imageUrl: text(body.imageUrl),
+    position: Number(body.position || 0)
+  };
+}
+
 export async function createApp() {
   const app = express();
   const basePath = normalizeBasePath(process.env.BASE_PATH);
@@ -176,23 +203,29 @@ export async function createApp() {
   const router = express.Router();
 
   router.get('/api/public/bootstrap', asyncHandler(async (_req, res) => {
-    const [settings, categories, recommendedArticles, latestArticles, albums, messages] = await Promise.all([
+    const [settings, categories, recommendedArticles, latestArticles, albums, messages, backgroundPhotos] = await Promise.all([
       store.getSettings(),
       store.listCategories(),
       store.listArticles({ recommended: true }),
       store.listArticles({}),
       store.listAlbums({ mode: 'folder' }),
-      store.listMessages()
+      store.listMessages(),
+      store.listBackgroundPhotos()
     ]);
 
     res.json({
       settings,
       categories,
-      recommendedArticles: recommendedArticles.slice(0, 6),
-      latestArticles: latestArticles.slice(0, 8),
+      recommendedArticles: recommendedArticles.slice(0, 6).map(publicArticleSummary),
+      latestArticles: latestArticles.slice(0, 8).map(publicArticleSummary),
       albums: albums.slice(0, 4),
-      messages: messages.slice(0, 8)
+      messages: messages.slice(0, 8),
+      backgroundPhotos
     });
+  }));
+
+  router.get('/api/public/background-photos', asyncHandler(async (_req, res) => {
+    res.json({ backgroundPhotos: await store.listBackgroundPhotos() });
   }));
 
   router.get('/api/public/timeline', asyncHandler(async (_req, res) => {
@@ -221,7 +254,7 @@ export async function createApp() {
       recommended: req.query.recommended,
       search: req.query.search
     });
-    res.json({ articles });
+    res.json({ articles: articles.map(publicArticleSummary) });
   }));
 
   router.get('/api/public/articles/:identifier', asyncHandler(async (req, res) => {
@@ -314,6 +347,22 @@ export async function createApp() {
   router.put('/api/admin/settings', adminOnly, asyncHandler(async (req, res) => {
     const settings = await store.updateSettings(req.body);
     res.json({ settings });
+  }));
+
+  router.get('/api/admin/background-photos', adminOnly, asyncHandler(async (_req, res) => {
+    res.json({ backgroundPhotos: await store.listBackgroundPhotos() });
+  }));
+
+  router.post('/api/admin/background-photos', adminOnly, asyncHandler(async (req, res) => {
+    res.status(201).json({ backgroundPhoto: await store.createBackgroundPhoto(backgroundPhotoPayload(req.body)) });
+  }));
+
+  router.put('/api/admin/background-photos/:id', adminOnly, asyncHandler(async (req, res) => {
+    res.json({ backgroundPhoto: await store.updateBackgroundPhoto(req.params.id, backgroundPhotoPayload(req.body)) });
+  }));
+
+  router.delete('/api/admin/background-photos/:id', adminOnly, asyncHandler(async (req, res) => {
+    res.json(await store.deleteBackgroundPhoto(req.params.id));
   }));
 
   router.get('/api/admin/categories', adminOnly, asyncHandler(async (_req, res) => {

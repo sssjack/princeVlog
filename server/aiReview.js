@@ -1,9 +1,8 @@
 import crypto from 'node:crypto';
 import http from 'node:http';
 import https from 'node:https';
+import { getAiConfig, isAiConfigured } from './aiConfig.js';
 
-const DEFAULT_DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions';
-const DEFAULT_DEEPSEEK_MODEL = 'deepseek-v4-pro';
 const MAX_ARTICLE_CHARS = 8000;
 const ARTICLE_REVIEW_MAX_TOKENS = 6000;
 export const ARTICLE_REVIEW_FORMAT_VERSION = 'comprehensive-500-v4';
@@ -38,7 +37,7 @@ function truncateText(value, maxLength) {
 }
 
 export function isAiReviewConfigured(env = process.env) {
-  return Boolean(cleanText(env.DEEPSEEK_API_KEY));
+  return isAiConfigured(env);
 }
 
 export function getArticleReviewSource(article) {
@@ -98,7 +97,7 @@ function postJsonWithNodeHttp(url, payload, headers = {}) {
 
     request.on('error', reject);
     request.setTimeout(60_000, () => {
-      request.destroy(new Error('DeepSeek request timed out'));
+      request.destroy(new Error('AI request timed out'));
     });
     request.write(body);
     request.end();
@@ -109,13 +108,8 @@ export async function generateArticleReview(article, {
   env = process.env,
   fetchImpl = globalThis.fetch
 } = {}) {
-  const apiKey = cleanText(env.DEEPSEEK_API_KEY);
-  if (!apiKey) {
-    throw new Error('DEEPSEEK_API_KEY is not configured');
-  }
+  const { apiKey, apiUrl, model } = getAiConfig(env);
 
-  const apiUrl = cleanText(env.DEEPSEEK_API_URL, DEFAULT_DEEPSEEK_API_URL);
-  const model = cleanText(env.DEEPSEEK_MODEL, DEFAULT_DEEPSEEK_MODEL);
   const payload = {
     model,
     messages: [
@@ -128,14 +122,15 @@ export async function generateArticleReview(article, {
         content: getArticleReviewSource(article)
       }
     ],
-    temperature: 0.55,
-    max_tokens: ARTICLE_REVIEW_MAX_TOKENS
+    reasoning_effort: 'none',
+    max_completion_tokens: ARTICLE_REVIEW_MAX_TOKENS
   };
 
   const headers = { Authorization: `Bearer ${apiKey}` };
   const response = typeof fetchImpl === 'function'
     ? await fetchImpl(apiUrl, {
       method: 'POST',
+      signal: AbortSignal.timeout(60_000),
       headers: {
         ...headers,
         'Content-Type': 'application/json'
@@ -145,17 +140,17 @@ export async function generateArticleReview(article, {
     : await postJsonWithNodeHttp(apiUrl, payload, headers);
 
   if (!response.ok) {
-    throw new Error(`DeepSeek request failed with status ${response.status}`);
+    throw new Error(`AI request failed with status ${response.status}`);
   }
 
   const data = await response.json();
   const choice = data?.choices?.[0];
   if (choice?.finish_reason === 'length') {
-    throw new Error('DeepSeek response was truncated by max_tokens');
+    throw new Error('AI response was truncated by max_completion_tokens');
   }
   const content = cleanText(choice?.message?.content);
   if (!content) {
-    throw new Error('DeepSeek returned an empty review');
+    throw new Error('AI returned an empty review');
   }
 
   return {
