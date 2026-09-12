@@ -7,6 +7,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { mkdir } from 'node:fs/promises';
+import { realpathSync } from 'node:fs';
 import { createAdminAuth, hashPassword } from './auth.js';
 import { createArticleReviewQueue } from './aiReview.js';
 import { loadEnvFile } from './env.js';
@@ -518,7 +519,9 @@ export async function createApp() {
   return app;
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+// PM2 launches through its container and deploys through the current symlink.
+const entryPath = process.env.pm_exec_path || process.argv[1];
+if (entryPath && realpathSync(entryPath) === fileURLToPath(import.meta.url)) {
   const port = Number(process.env.PORT || 4210);
   const app = await createApp();
   app.listen(port, '0.0.0.0', () => console.log(`PrinceVlog listening on port ${port}`));
